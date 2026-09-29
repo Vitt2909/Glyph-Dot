@@ -6,6 +6,8 @@ public enum EngineEvent: Sendable, Equatable {
     case send(Message)
     /// Duplo clique: abrir a casa (o único painel tradicional).
     case openHome
+    /// Clique no Glyph segurando o diário: abrir o arquivo.
+    case openFile(String)
 }
 
 /// O motor da criatura: junta mundo, física, navegação, comportamento e
@@ -71,6 +73,7 @@ public struct GlyphEngine: Sendable {
     private var brainDot: (mode: DotMode, speed: Double, since: Double, until: Double)?
     private var approval: (why: String, until: Double)?
     private var budgetDots = 0
+    private var pendingDiary: String?
     private var fullscreen = false
 
     // Animação
@@ -183,6 +186,12 @@ public struct GlyphEngine: Sendable {
     }
 
     private mutating func click() {
+        if let diary = pendingDiary {
+            pendingDiary = nil
+            held = nil
+            events.append(.openFile(diary))
+            return
+        }
         if case .sleep = intent {
             // Acorda.
             needs.energy = max(needs.energy, 0.5)
@@ -236,7 +245,12 @@ public struct GlyphEngine: Sendable {
             say(BubbleSay(text: r.why).displayText, duration: min(r.timeoutSec, 30))
         case let .taskUpdate(t):
             budgetDots = min(t.budgetRemaining ?? 0, 12)
-        case .agentSpawn, .agentDespawn, .diaryReady, .hello,
+        case let .diaryReady(d):
+            // Volta de manhã segurando o diário; clicar abre.
+            pendingDiary = d.path
+            if let s = stickers["diario"] { held = (s, time + 12 * 3600) }
+            say("diário pronto.", duration: 6)
+        case .agentSpawn, .agentDespawn, .hello,
              .worldUpdate, .inputSummon, .inputBrake, .approvalResponse:
             break
         }

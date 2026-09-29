@@ -67,6 +67,12 @@ public struct DaemonConfig: Decodable, Sendable, Equatable {
     public var cerebro: Cerebro?
     public var ferramentas: Ferramentas?
     public var sensores: Sensores?
+    public var turno_noturno: TurnoNoturno?
+
+    public struct TurnoNoturno: Decodable, Sendable, Equatable {
+        /// Impede o sono ocioso durante tarefa noturna, só na tomada. Opt-in.
+        public var manter_acordado: Bool?
+    }
     public var corpo: Corpo?
 
     public init() {}
@@ -110,6 +116,10 @@ public struct DaemonConfig: Decodable, Sendable, Equatable {
       # Repositórios onde o Glyph pode agir sozinho (dentro da escada de confiança).
       repos: []
       git_intervalo: 20
+
+    turno_noturno:
+      # Mantém o Mac acordado só enquanto houver tarefa noturna e só na tomada.
+      manter_acordado: false
 
     corpo:
       # Team ID do Developer ID que assina o Glyph.app (vazio = usar pareamento).

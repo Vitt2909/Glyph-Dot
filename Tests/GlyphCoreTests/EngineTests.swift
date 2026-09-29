@@ -257,3 +257,19 @@ final class HeldStickerTests: XCTestCase {
         XCTAssertGreaterThan(StickerShapes.build(d).strokes.count, StickerShapes.build(GlyphDrawing.standing(at: .zero)).strokes.count)
     }
 }
+
+final class DiaryEngineTests: XCTestCase {
+    func testDiaryIsHeldAndClickOpensIt() {
+        let (stickers, _) = Sticker.load(pack: Packs.defaultPack)
+        var e = GlyphEngine(world: WorldSnapshot(screens: [TestWorlds.screen]), clips: Packs.library,
+                            stickers: stickers, start: Vec2(700, 90))
+        for _ in 0..<60 { e.advance(by: 1.0 / 60) }
+        e.receive(.diaryReady(DiaryReady(path: "/tmp/diario/2026-09-30.md")))
+        XCTAssertEqual(e.drawing?.held?.id, "diario")
+        XCTAssertEqual(e.drawing?.bubble, "diário pronto.")
+        let p = e.body.position + Vec2(0, 20)
+        e.mouseDown(at: p); e.mouseUp(at: p)
+        XCTAssertEqual(e.drainEvents(), [.openFile("/tmp/diario/2026-09-30.md")])
+        XCTAssertNil(e.drawing?.held, "entregou o diário")
+    }
+}

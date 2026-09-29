@@ -1,0 +1,10 @@
+{
+  "id": "backpack",
+  "fps": 12,
+  "loop": true,
+  "keys": [
+    {"t": 0, "pose": {"torso": -10, "armL.upper": -30, "armL.lower": 60, "armR.upper": -35, "armR.lower": 70, "legL.upper": 22, "legL.lower": -6, "legR.upper": -20, "legR.lower": -20}},
+    {"t": 0.25, "pose": {"torso": -10, "root.dy": 1, "armL.upper": -30, "armL.lower": 60, "armR.upper": -35, "armR.lower": 70, "legL.upper": -20, "legL.lower": -20, "legR.upper": 22, "legR.lower": -6}}
+  ],
+  "dot": {"mode": "steady"}
+}

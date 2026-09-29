@@ -54,6 +54,7 @@ public actor GlyphServer {
     private var server: UnixSocketServer?
     private var sensorServer: SensorServer?
     private var autonomy: AutonomyEngine?
+    private var goals: GoalRunner?
     private var extraTasks: [Task<Void, Never>] = []
     private var sessions: [Int: Session] = [:]
     private var nextSession = 0
@@ -98,6 +99,11 @@ public actor GlyphServer {
     /// servidor como canal com o corpo.
     public func attach(autonomy: AutonomyEngine) {
         self.autonomy = autonomy
+    }
+
+    /// Liga os objetivos (M4).
+    public func attach(goals: GoalRunner) {
+        self.goals = goals
     }
 
     public func attach(task: Task<Void, Never>) {
@@ -304,8 +310,18 @@ public actor GlyphServer {
     // MARK: - Sensores
 
     public func sensorEvent(_ e: SensorEvent) async {
-        guard !paused, let autonomy else { return }
-        await autonomy.handle(e)
+        guard !paused else { return }
+        if let autonomy { await autonomy.handle(e) }
+        if let goals { await goals.trigger(e) }
+    }
+
+    /// Batimento (a cada 30 s): objetivos agendados.
+    public func heartbeat(now: Date = Date()) async {
+        guard !paused, let goals else { return }
+        let idle = primaryWorld?.idleSeconds ?? 3600
+        let away = idle > 600 || sessions.isEmpty
+        await goals.setNightShift(Schedule.isNight(now) || away)
+        _ = await goals.heartbeat(now: now, userAway: away)
     }
 
     // MARK: - Aprovações
