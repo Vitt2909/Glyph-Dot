@@ -113,15 +113,23 @@ public enum Mala {
                     continue
                 }
             }
-            let dest = casa.appendingPathComponent(rel).standardizedFileURL
-            guard dest.path.hasPrefix(casa.standardizedFileURL.path + "/") else {
+            let root = casa.standardizedFileURL.resolvingSymlinksInPath()
+            let dest = root.appendingPathComponent(rel).standardizedFileURL
+            // Um link simbólico em qualquer componente não pode levar a gravação para fora da casa.
+            guard dest.path.hasPrefix(root.path + "/"),
+                  dest.resolvingSymlinksInPath().path.hasPrefix(root.path + "/") else {
                 report.skipped.append(rel)
                 continue
             }
             try fm.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
             if fm.fileExists(atPath: dest.path) {
                 if (try? Data(contentsOf: dest)) == data { continue }
-                try data.write(to: URL(fileURLWithPath: dest.path + ".da-mala"), options: .atomic)
+                let conflict = URL(fileURLWithPath: dest.path + ".da-mala")
+                guard conflict.resolvingSymlinksInPath().path.hasPrefix(root.path + "/") else {
+                    report.skipped.append(rel)
+                    continue
+                }
+                try data.write(to: conflict, options: .atomic)
                 report.conflicts.append(rel)
             } else {
                 try data.write(to: dest, options: .atomic)
