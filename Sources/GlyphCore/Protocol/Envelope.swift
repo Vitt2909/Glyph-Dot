@@ -12,6 +12,7 @@ public enum Message: Sendable, Equatable {
     case hello(Hello)
     case worldUpdate(WorldUpdate)
     case inputSummon(InputSummon)
+    case inputBrake(InputBrake)
     case approvalResponse(ApprovalResponse)
     case bodyGoto(BodyGoto)
     case bodyEmote(BodyEmote)
@@ -26,6 +27,7 @@ public enum Message: Sendable, Equatable {
         case hello
         case worldUpdate = "world.update"
         case inputSummon = "input.summon"
+        case inputBrake = "input.brake"
         case approvalResponse = "approval.response"
         case bodyGoto = "body.goto"
         case bodyEmote = "body.emote"
@@ -41,7 +43,7 @@ public enum Message: Sendable, Equatable {
         public var allowedSenders: Set<Peer> {
             switch self {
             case .hello: return [.body, .brain]
-            case .worldUpdate, .inputSummon, .approvalResponse: return [.body]
+            case .worldUpdate, .inputSummon, .inputBrake, .approvalResponse: return [.body]
             case .bodyGoto, .bodyEmote, .bubbleSay, .approvalRequest,
                  .taskUpdate, .agentSpawn, .agentDespawn, .diaryReady: return [.brain]
             }
@@ -53,6 +55,7 @@ public enum Message: Sendable, Equatable {
         case .hello: return .hello
         case .worldUpdate: return .worldUpdate
         case .inputSummon: return .inputSummon
+        case .inputBrake: return .inputBrake
         case .approvalResponse: return .approvalResponse
         case .bodyGoto: return .bodyGoto
         case .bodyEmote: return .bodyEmote
@@ -70,6 +73,7 @@ public enum Message: Sendable, Equatable {
         case let .hello(p): return p
         case let .worldUpdate(p): return p
         case let .inputSummon(p): return p
+        case let .inputBrake(p): return p
         case let .approvalResponse(p): return p
         case let .bodyGoto(p): return p
         case let .bodyEmote(p): return p
@@ -133,6 +137,7 @@ extension Envelope: Codable {
         case .hello: message = .hello(try Hello(from: decoder))
         case .worldUpdate: message = .worldUpdate(try WorldUpdate(from: decoder))
         case .inputSummon: message = .inputSummon(try InputSummon(from: decoder))
+        case .inputBrake: message = .inputBrake(try InputBrake(from: decoder))
         case .approvalResponse: message = .approvalResponse(try ApprovalResponse(from: decoder))
         case .bodyGoto: message = .bodyGoto(try BodyGoto(from: decoder))
         case .bodyEmote: message = .bodyEmote(try BodyEmote(from: decoder))

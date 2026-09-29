@@ -104,6 +104,14 @@ segura; sem resposta, a resposta é não.
 
 Teste sem corpo: `glyphd ask "que horas são?"`.
 
+### Autonomia
+
+Com o hook do terminal (`source Scripts/glyph-shell.zsh` no `~/.zshrc`) e um
+repositório marcado em `sensores.repos`, quando um teste falha ele vai até o
+terminal, roda a bateria de novo sozinho e aponta o arquivo que quebrou. O que
+não dá para desfazer sempre vira cartão. `glyphd historico` mostra tudo que ele
+fez; `glyphd confianca` mostra a escada; **⌃⌥⌘.** puxa o freio.
+
 ## Instalação
 
 Ainda não há binário assinado. Para o app abrir sem aviso do Gatekeeper é
@@ -116,7 +124,7 @@ releases, o macOS vai avisar que o desenvolvedor não foi verificado.
 - [x] **M0 — Fundação:** repositório, licenças, CI, protocolo v0, modo mock, Glyph parado.
 - [ ] **M1 — A criatura muda:** overlay, mundo, física, pathfinding, estilo sticker completo. Sem IA. *(código pronto e testado no Core; falta validar no macOS)*
 - [x] **M2 — Cérebro reativo:** `glyphd` como LaunchAgent, Claude/OpenAI/Ollama, bolhas, `shell` em sandbox e busca na web.
-- [ ] **M3 — Autonomia v1:** sensores, intenções, pontuação, escada de confiança, aprovações, freio.
+- [x] **M3 — Autonomia v1:** sensores (terminal, git), intenções, pontuação, escada de confiança, regras "sempre", histórico com desfazer, freio (⌃⌥⌘.).
 - [ ] **M4 — Objetivos e turno noturno:** `goals.yaml`, orçamentos, worktrees, diário da manhã.
 - [ ] **M5 — Multi-Glyph:** supervisor, Builder, Pesquisador, Auditor com veto.
 - [ ] **M6 — Ecossistema:** agentes externos, packs da comunidade, viagem entre dispositivos.

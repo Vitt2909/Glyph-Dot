@@ -49,6 +49,14 @@ public struct DaemonConfig: Decodable, Sendable, Equatable {
         public var web: Web?
     }
 
+    public struct Sensores: Decodable, Sendable, Equatable {
+        /// Aceitar eventos do hook do terminal (`Scripts/glyph-shell.zsh`).
+        public var terminal: Bool?
+        /// Repositórios marcados: autonomia age neles; git observado.
+        public var repos: [String]?
+        public var git_intervalo: Double?
+    }
+
     public struct Corpo: Decodable, Sendable, Equatable {
         /// Team ID do Developer ID que assina o app.
         public var equipe: String?
@@ -58,6 +66,7 @@ public struct DaemonConfig: Decodable, Sendable, Equatable {
 
     public var cerebro: Cerebro?
     public var ferramentas: Ferramentas?
+    public var sensores: Sensores?
     public var corpo: Corpo?
 
     public init() {}
@@ -94,6 +103,13 @@ public struct DaemonConfig: Decodable, Sendable, Equatable {
       web:
         busca: duckduckgo   # duckduckgo | brave | searxng
         # searxng: http://127.0.0.1:8888
+
+    sensores:
+      # Eventos do terminal (instale Scripts/glyph-shell.zsh no ~/.zshrc).
+      terminal: true
+      # Repositórios onde o Glyph pode agir sozinho (dentro da escada de confiança).
+      repos: []
+      git_intervalo: 20
 
     corpo:
       # Team ID do Developer ID que assina o Glyph.app (vazio = usar pareamento).

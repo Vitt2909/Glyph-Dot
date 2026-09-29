@@ -144,6 +144,8 @@ public final class LineConnection: @unchecked Sendable {
     /// Chamado na fila da conexão para cada linha (ou erro de framing).
     public var onLine: (@Sendable (Result<Envelope, Error>) -> Void)?
     public var onClose: (@Sendable () -> Void)?
+    /// Se definido, recebe as linhas cruas (sem decodificar como `Envelope`).
+    public var onRawLine: (@Sendable (Data) -> Void)?
 
     init(fd: Int32, peer: PeerCredentials?, label: String) {
         self.fd = fd
@@ -176,6 +178,7 @@ public final class LineConnection: @unchecked Sendable {
         for line in buffer.append(Data(chunk[0..<n])) {
             switch line {
             case let .success(data):
+                if let raw = onRawLine { raw(data); continue }
                 onLine?(Result { try codec.decode(data) })
             case let .failure(e):
                 onLine?(.failure(e))
@@ -209,6 +212,7 @@ public final class LineConnection: @unchecked Sendable {
         onClose?()
         onLine = nil
         onClose = nil
+        onRawLine = nil
     }
 }
 

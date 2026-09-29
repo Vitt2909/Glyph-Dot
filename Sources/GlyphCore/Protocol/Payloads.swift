@@ -105,6 +105,14 @@ public struct InputSummon: Sendable, Equatable, Codable {
     }
 }
 
+/// Freio global: pausa tudo, cancela tarefas, todos os Glyphs voltam para casa.
+public struct InputBrake: Sendable, Equatable, Codable {
+    /// `true` puxa o freio; `false` solta.
+    public var engage: Bool
+
+    public init(engage: Bool) { self.engage = engage }
+}
+
 public struct ApprovalResponse: Sendable, Equatable, Codable {
     public enum Decision: Sendable, Equatable {
         case approve

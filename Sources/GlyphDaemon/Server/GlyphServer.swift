@@ -3,21 +3,24 @@ import GlyphCore
 import GlyphIPC
 
 /// O `glyphd` em execução: aceita corpos no socket, conversa com eles pelo
-/// Glyph Protocol e roda o cérebro quando o usuário chama.
+/// Glyph Protocol, roda o cérebro quando o usuário chama e a autonomia quando
+/// os sensores percebem algo.
 ///
-/// Nunca executa nada a pedido do corpo: o corpo só percebe e aprova. Toda
-/// ação passa pelo `ActionGate` dentro do `AgentLoop`.
+/// Nunca executa nada a pedido do corpo: o corpo só percebe, chama, aprova e
+/// freia. Toda ação passa pela `Policy`.
 public actor GlyphServer {
     public struct Options: Sendable {
         public var socketPath: String
+        public var sensorSocketPath: String?
         public var verifier: PeerVerifier
         /// Deixe corpos não verificados aprovarem. Só para desenvolvimento.
         public var trustUnverifiedBodies: Bool
         public var approvalTimeout: Double
 
-        public init(socketPath: String, verifier: PeerVerifier = PeerVerifier(), trustUnverifiedBodies: Bool = false,
-                    approvalTimeout: Double = 120) {
+        public init(socketPath: String, sensorSocketPath: String? = nil, verifier: PeerVerifier = PeerVerifier(),
+                    trustUnverifiedBodies: Bool = false, approvalTimeout: Double = 120) {
             self.socketPath = socketPath
+            self.sensorSocketPath = sensorSocketPath
             self.verifier = verifier
             self.trustUnverifiedBodies = trustUnverifiedBodies
             self.approvalTimeout = approvalTimeout
@@ -29,7 +32,6 @@ public actor GlyphServer {
         let connection: LineConnection
         let trust: PeerTrust
         var world: WorldUpdate?
-        var greeted = false
 
         init(id: Int, connection: LineConnection, trust: PeerTrust) {
             self.id = id
@@ -38,21 +40,38 @@ public actor GlyphServer {
         }
     }
 
+    struct Pending {
+        var continuation: CheckedContinuation<Bool, Never>
+        var key: TrustKey?
+        var tool: String
+    }
+
     public let options: Options
     private var agent: AgentLoop
+    public let policy: PolicyStore
+    public let history: HistoryStore
     private let log: DaemonLog
     private var server: UnixSocketServer?
+    private var sensorServer: SensorServer?
+    private var autonomy: AutonomyEngine?
+    private var extraTasks: [Task<Void, Never>] = []
     private var sessions: [Int: Session] = [:]
     private var nextSession = 0
     private var nextMessage = 0
-    private var pendingApprovals: [String: CheckedContinuation<Bool, Never>] = [:]
+    private var pendingApprovals: [String: Pending] = [:]
     private var busy = false
-    private var history: [ChatTurn] = []
+    private var currentTask: Task<Void, Never>?
+    private var chatHistory: [ChatTurn] = []
+    public private(set) var paused = false
 
-    public init(options: Options, agent: AgentLoop, log: DaemonLog) {
+    public init(options: Options, agent: AgentLoop, log: DaemonLog,
+                policy: PolicyStore = PolicyStore(policyURL: nil, trustURL: nil),
+                history: HistoryStore = HistoryStore(url: nil)) {
         self.options = options
         self.agent = agent
         self.log = log
+        self.policy = policy
+        self.history = history
     }
 
     public func start() throws {
@@ -63,11 +82,33 @@ public actor GlyphServer {
         }
         try s.start()
         server = s
+        if let path = options.sensorSocketPath {
+            let sensors = SensorServer(path: path)
+            sensors.onEvent = { [weak self] e in
+                guard let self else { return }
+                Task { await self.sensorEvent(e) }
+            }
+            try sensors.start()
+            sensorServer = sensors
+        }
         log.log("glyphd ouvindo em \(options.socketPath) (cérebro: \(agent.brain.id))")
+    }
+
+    /// Liga a autonomia (M3). Separado do `init` porque o motor precisa do
+    /// servidor como canal com o corpo.
+    public func attach(autonomy: AutonomyEngine) {
+        self.autonomy = autonomy
+    }
+
+    public func attach(task: Task<Void, Never>) {
+        extraTasks.append(task)
     }
 
     public func stop() {
         server?.stop()
+        sensorServer?.stop()
+        extraTasks.forEach { $0.cancel() }
+        currentTask?.cancel()
         for s in sessions.values { s.connection.close() }
         sessions.removeAll()
     }
@@ -121,18 +162,19 @@ public actor GlyphServer {
         }
         switch env.message {
         case .hello:
-            session.greeted = true
-            send(.hello(Hello(role: .brain, capabilities: ["agent", "tools"], name: "glyphd")), to: session)
+            send(.hello(Hello(role: .brain, capabilities: ["agent", "tools", "autonomy", "brake"], name: "glyphd")), to: session)
         case let .worldUpdate(w):
             session.world = w
         case let .inputSummon(s):
             await summon(s, session: session)
+        case let .inputBrake(b):
+            await brake(b.engage)
         case let .approvalResponse(r):
             guard session.trust.canApprove || options.trustUnverifiedBodies else {
                 log.log("corpo \(id) tentou aprovar sem assinatura conferida: ignorado")
                 return
             }
-            resolveApproval(r)
+            await resolveApproval(r)
         default:
             break
         }
@@ -155,6 +197,10 @@ public actor GlyphServer {
     // MARK: - Chamado
 
     private func summon(_ s: InputSummon, session: Session) async {
+        if paused {
+            // Chamar é um pedido explícito: solta o freio.
+            await brake(false)
+        }
         guard let text = s.text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else {
             send(.bodyEmote(BodyEmote(clip: "wave", dot: .pulse)), to: session)
             send(.bubbleSay(BubbleSay(text: busy ? "já tô pensando…" : "oi.")), to: session)
@@ -165,19 +211,36 @@ public actor GlyphServer {
             return
         }
         busy = true
-        defer { busy = false }
+        let task = Task { await self.runSummon(text, session: session) }
+        currentTask = task
+        await task.value
+        currentTask = nil
+        busy = false
+    }
+
+    private func runSummon(_ text: String, session: Session) async {
         log.log("chamado: \(text)")
         let cues = ServerCues(server: self, session: session)
+        var loop = agent
+        loop.gate = PolicyGate(store: policy)
+        loop.userInitiated = true
         do {
-            let result = try await agent.run(text, context: worldContext(session.world), history: history, cues: cues)
-            history = Array(result.turns.suffix(24))
+            let result = try await loop.run(text, context: worldContext(session.world), history: chatHistory, cues: cues)
+            chatHistory = Array(result.turns.suffix(24))
             trimHistory()
+            for step in result.steps {
+                await history.append(HistoryEntry(origin: .user, summary: text, actionClass: step.actionClass,
+                                                  tool: step.tool, outcome: step.approved ? (step.output?.isError == true ? .failed : .done) : .denied,
+                                                  detail: step.output.map { String($0.text.suffix(200)) }))
+            }
             log.log("resposta: \(result.answer) (\(result.steps.count) ferramentas, \(result.usage.total) tokens)")
             if let home = session.world?.glyph {
                 send(.bodyGoto(BodyGoto(target: .point(home))), to: session)
             }
             send(.bodyEmote(BodyEmote(clip: "idle", dot: .steady)), to: session)
             send(.bubbleSay(BubbleSay(text: result.answer, durationSec: 6)), to: session)
+        } catch is CancellationError {
+            log.log("chamado cancelado pelo freio")
         } catch {
             log.log("erro no cérebro: \(error)")
             send(.bodyEmote(BodyEmote(clip: "error", dot: .shrink)), to: session)
@@ -185,12 +248,11 @@ public actor GlyphServer {
         }
     }
 
-    /// O histórico precisa começar num turno do usuário com texto (não com
-    /// resultados de ferramentas soltos).
+    /// O histórico precisa começar num turno do usuário com texto.
     private func trimHistory() {
-        while let first = history.first {
+        while let first = chatHistory.first {
             if case .user = first { break }
-            history.removeFirst()
+            chatHistory.removeFirst()
         }
     }
 
@@ -218,9 +280,38 @@ public actor GlyphServer {
         return lines.joined(separator: "\n")
     }
 
+    // MARK: - Freio
+
+    /// Puxa (ou solta) o freio: pausa geral, cancela tarefas, nega aprovações
+    /// pendentes, todos os Glyphs voltam para casa.
+    public func brake(_ engage: Bool) async {
+        guard engage != paused else { return }
+        paused = engage
+        if engage {
+            log.log("FREIO: pausa geral")
+            currentTask?.cancel()
+            for (_, p) in pendingApprovals { p.continuation.resume(returning: false) }
+            pendingApprovals.removeAll()
+            broadcast(.bodyGoto(BodyGoto(target: .home)))
+            broadcast(.bodyEmote(BodyEmote(clip: "idle", dot: .fade)))
+            await history.append(HistoryEntry(origin: .user, summary: "freio puxado", outcome: .done))
+        } else {
+            log.log("freio solto")
+            broadcast(.bubbleSay(BubbleSay(text: "voltei.")))
+        }
+    }
+
+    // MARK: - Sensores
+
+    public func sensorEvent(_ e: SensorEvent) async {
+        guard !paused, let autonomy else { return }
+        await autonomy.handle(e)
+    }
+
     // MARK: - Aprovações
 
-    func requestApproval(_ req: ApprovalRequest, session: Session) async -> Bool {
+    func requestApproval(_ req: ApprovalRequest, key: TrustKey?) async -> Bool {
+        guard !paused else { return false }
         let approver = sessions.values.first { $0.trust.canApprove || options.trustUnverifiedBodies }
         guard let approver else {
             log.log("aprovação negada: nenhum corpo verificado conectado (\(req.action) \(req.target))")
@@ -232,7 +323,7 @@ public actor GlyphServer {
         log.log("pedindo aprovação \(id): \(req.action) \(req.target) [\(req.actionClass.rawValue)]")
         let timeout = req.timeoutSec
         return await withCheckedContinuation { cont in
-            pendingApprovals[id] = cont
+            pendingApprovals[id] = Pending(continuation: cont, key: key, tool: req.action)
             Task { [weak self] in
                 try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
                 await self?.expire(id)
@@ -241,26 +332,38 @@ public actor GlyphServer {
     }
 
     private func expire(_ id: String) {
-        guard let cont = pendingApprovals.removeValue(forKey: id) else { return }
+        guard let p = pendingApprovals.removeValue(forKey: id) else { return }
         log.log("aprovação \(id): sem resposta, negada")
-        cont.resume(returning: false)
+        p.continuation.resume(returning: false)
     }
 
-    private func resolveApproval(_ r: ApprovalResponse) {
-        guard let cont = pendingApprovals.removeValue(forKey: r.requestId) else { return }
+    private func resolveApproval(_ r: ApprovalResponse) async {
+        guard let p = pendingApprovals.removeValue(forKey: r.requestId) else { return }
         let ok: Bool
         switch r.decision {
-        case .approve, .always: ok = true
-        case .deny: ok = false
+        case .approve:
+            ok = true
+        case .deny:
+            ok = false
+        case let .always(_, expires):
+            ok = true
+            // O escopo é o que o daemon guardou, não o que o corpo mandou:
+            // o corpo não consegue ampliar uma regra.
+            if let key = p.key {
+                let until = min(expires, Date().addingTimeInterval(90 * 86_400))
+                let created = await policy.allowAlways(key, tool: p.tool, until: until)
+                log.log(created ? "regra criada: sempre \(key) até \(ISO8601.format(until))"
+                                : "regra recusada para \(key): classe irreversível")
+            }
         }
         log.log("aprovação \(r.requestId): \(ok ? "aprovada" : "negada")")
-        cont.resume(returning: ok)
+        p.continuation.resume(returning: ok)
     }
 
     // MARK: - Encenação
 
     /// Janela do app mais adequado para um lugar (navegador, terminal).
-    static func window(for place: ToolPlace, in world: WorldUpdate?) -> WindowSummary? {
+    public static func window(for place: ToolPlace, in world: WorldUpdate?) -> WindowSummary? {
         let names: [String]
         switch place {
         case .browser: names = ["Safari", "Google Chrome", "Firefox", "Arc", "Brave Browser", "Microsoft Edge", "Orion", "Chromium", "Zen"]
@@ -274,6 +377,21 @@ public actor GlyphServer {
     fileprivate func cue(_ message: Message, session: Session) {
         send(message, to: session)
     }
+
+    fileprivate var primaryWorld: WorldUpdate? { primary?.world }
+}
+
+/// O servidor é o canal da autonomia com os corpos.
+extension GlyphServer: BodyChannel {
+    public func cue(_ message: Message) async { broadcast(message) }
+
+    public func approve(_ request: ApprovalRequest, key: TrustKey?) async -> Bool {
+        await requestApproval(request, key: key)
+    }
+
+    public func world() async -> WorldUpdate? { primaryWorld }
+
+    public func isPaused() async -> Bool { paused }
 }
 
 /// Transforma o trabalho do agente em movimento do corpo.
@@ -298,11 +416,11 @@ struct ServerCues: AgentCues {
         }
     }
 
-    func approve(action: String, target: String, actionClass: ActionClass, why: String) async -> Bool {
+    func approve(action: String, target: String, actionClass: ActionClass, scope: String, why: String) async -> Bool {
         let req = ApprovalRequest(action: action, target: target, actionClass: actionClass,
                                   why: why.isEmpty ? "posso fazer isto?" : why,
                                   timeoutSec: server.options.approvalTimeout)
-        return await server.requestApproval(req, session: session)
+        return await server.requestApproval(req, key: TrustKey(actionClass, scope))
     }
 
     func announce(_ text: String) async {

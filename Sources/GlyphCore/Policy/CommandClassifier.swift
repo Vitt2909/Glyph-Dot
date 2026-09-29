@@ -111,6 +111,11 @@ public enum CommandClassifier {
         // Atribuições de ambiente na frente (`FOO=1 cmd`).
         while let f = w.first, f.contains("="), !f.hasPrefix("-"), f.first?.isLetter == true { w.removeFirst() }
         guard var cmd = w.first else { return Verdict(.read, "vazio") }
+        // Script chamado por caminho (./x, ~/bin/x): pode fazer qualquer coisa.
+        let systemDirs = ["/usr/bin/", "/bin/", "/usr/sbin/", "/sbin/", "/usr/local/bin/", "/opt/homebrew/bin/"]
+        if cmd.contains("/"), !systemDirs.contains(where: { cmd.hasPrefix($0) }) {
+            return Verdict(.externalEffect, "script local: \(cmd)")
+        }
         cmd = (cmd as NSString).lastPathComponent
         let args = Array(w.dropFirst())
 

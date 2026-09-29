@@ -237,7 +237,7 @@ public struct GlyphEngine: Sendable {
         case let .taskUpdate(t):
             budgetDots = min(t.budgetRemaining ?? 0, 12)
         case .agentSpawn, .agentDespawn, .diaryReady, .hello,
-             .worldUpdate, .inputSummon, .approvalResponse:
+             .worldUpdate, .inputSummon, .inputBrake, .approvalResponse:
             break
         }
     }

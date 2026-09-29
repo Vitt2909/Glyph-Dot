@@ -39,6 +39,7 @@ struct FakeTool: Tool {
     var output: String
     var untrusted = false
     var toolPlace: ToolPlace = .none
+    var failing = false
     let calls = Counter()
 
     var spec: ToolSpec { ToolSpec(name: name, description: "falsa", inputSchema: .object(["type": .string("object")])) }
@@ -47,7 +48,7 @@ struct FakeTool: Tool {
 
     func run(_ input: JSONValue) async throws -> ToolOutput {
         calls.increment()
-        return ToolOutput(output, untrusted: untrusted)
+        return ToolOutput(output, isError: failing, untrusted: untrusted)
     }
 }
 

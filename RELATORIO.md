@@ -1,3 +1,59 @@
+# Relatório — M3 Autonomia v1
+
+Branch: `feat/m3-autonomia` (empilhado sobre `feat/m2-cerebro`).
+
+## Feito
+
+| Área | Onde | O quê |
+|---|---|---|
+| Política | `Core/Policy/TrustLadder.swift` | Níveis 0–3, iniciais e tetos da tabela do plano, escada por classe e escopo (5 aprovações em 14 dias sobem; recusa/desfazer desce; só reversíveis se movem), regras "sempre" com escopo e validade, **trava de irreversíveis em código** |
+| Intenções | `Core/Policy/Intent.swift` | `Intent`, `S = R·C·U·(1 − I·F)`, limiares 0,3/0,6, foco, calibração da confiança pelo histórico |
+| Falhas de teste | `Core/Policy/FailureParser.swift` | Primeiro arquivo:linha em XCTest, Swift Testing, pytest, Jest/Vitest, Go, Rust |
+| Sensores | `Daemon/Sensors` | `sensors.sock` (só o mesmo usuário), `Scripts/glyph-shell.zsh` (comando, código, pasta, duração; nunca a saída; espaço na frente = privado; em segundo plano), `GitWatcher` (commit novo) |
+| Autonomia | `Daemon/Autonomy` | Reflexos → intenção → pontuação → política → age/aponta/descarta → histórico. Não repete a mesma intenção por 60 s. Respeita o freio |
+| Casa | `policy.yaml`, `confianca.json`, `historico.jsonl` | Legíveis; `glyphd historico`, `desfazer`, `confianca` |
+| Servidor | `GlyphServer` | Portão com a política de verdade; "sempre" do cartão vira regra no escopo guardado pelo daemon; freio cancela o chamado, nega pendências e manda todos para casa; chamar solta o freio |
+| Protocolo | `input.brake` | Corpo → cérebro |
+| Corpo | ⌃⌥⌘. | Freio (o corpo vai para casa sem esperar o cérebro) |
+| Pack | `point` | Aponta segurando o alfinete |
+
+## Aceite
+
+| Critério | Estado |
+|---|---|
+| Teste falha no terminal → percebe, se aproxima, roda os testes sozinho (`compute`, nível 2) e aponta o arquivo | ✅ `AutonomyTests.testFailingTestsAreRerunAndFilePointed`: vai até o terminal, segura o alfinete, bolha "2 falhas: ParserTests.swift:42", sem cartão |
+| Qualquer `external_effect` sempre gera cartão; timeout nega | ✅ `PolicyTests.testIrreversibleLockHoldsAgainstEverything`, `ServerTests.testApprovalTimeoutDenies` |
+| Testes do Core cobrem promoção, rebaixamento e a trava | ✅ `TrustLadderTests` (6), `PolicyTests` (5), `ScoringTests` (4) |
+
+`swift test`: **206 testes** verdes.
+
+## Decisões tomadas sozinho
+
+1. **Autonomia só age em repositórios marcados** (`sensores.repos`). Fora
+   deles, a relevância fica abaixo de 0,6: ele só aponta, calado.
+2. **Custo de interrupção baixo para "repetir testes"** (0,2): ele não fala
+   com você para fazer isso; só anda até o terminal.
+3. **Pedido do usuário não gera bolha de "aviso"** no nível 2: a resposta
+   final já é o aviso (uma bolha por vez).
+4. **Nível 0 com pedido explícito do usuário vira cartão** em vez de recusa
+   silenciosa.
+5. **Regra "sempre" vale no máximo 90 dias**, mesmo que o corpo peça mais.
+6. **Script chamado por caminho** (`./x`) é `external_effect`: nunca repetido sozinho.
+7. **JSON/JSONL em vez de `glyph.sqlite`**: sem dependência (ADR 0005),
+   legível e fácil de auditar. Se o volume crescer, SQLite entra com ADR.
+8. **Freio solta ao chamar o Glyph** (pedido explícito).
+9. **Nenhuma mudança nas regras da escada ou da trava**: implementadas como
+   estão no plano. Propostas futuras vão em `docs/AUTONOMY.md`.
+
+## Faltando
+
+- Sensor de calendário (EventKit) para `focus: meeting` automático: o foco
+  hoje vem do corpo (tela cheia) e do que o `world.update` disser.
+- FSEvents no lugar do polling de git (mesma interface).
+- Segurar a casa por 1 s como freio (hoje é só o atalho).
+
+---
+
 # Relatório — M2 Cérebro reativo
 
 Branch: `feat/m2-cerebro` (empilhado sobre `feat/arte-svg`).

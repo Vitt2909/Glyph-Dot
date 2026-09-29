@@ -1,0 +1,12 @@
+{
+  "id": "point",
+  "fps": 12,
+  "loop": false,
+  "keys": [
+    {"t": 0, "ease": "out", "pose": {"armL.upper": 30, "armL.lower": 10, "torso": 0}},
+    {"t": 0.25, "ease": "inOut", "pose": {"armL.upper": 92, "armL.lower": -4, "torso": -6, "head": -6, "legL.upper": 18, "legR.upper": -10}},
+    {"t": 1.6, "ease": "inOut", "pose": {"armL.upper": 88, "armL.lower": -2, "torso": -6, "head": -4, "legL.upper": 18, "legR.upper": -10}},
+    {"t": 2.0, "pose": {}}
+  ],
+  "dot": {"mode": "alert"}
+}

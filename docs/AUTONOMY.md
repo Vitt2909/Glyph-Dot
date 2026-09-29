@@ -1,8 +1,9 @@
 # Autonomia
 
-> Status: **especificação**. A implementação chega no M3 (intenções,
-> pontuação, classes, escada de confiança) e no M4 (objetivos, orçamentos).
-> No M0 só existe `ActionClass` no protocolo e a rejeição de `financial`.
+> Status: **implementado no M3** (intenções, pontuação, classes, escada de
+> confiança, regras "sempre", trava de irreversíveis, histórico, freio). O
+> código está em `Sources/GlyphCore/Policy/` (testado em Linux) e
+> `Sources/GlyphDaemon/Autonomy/`. Objetivos e orçamentos chegam no M4.
 >
 > Qualquer mudança na trava de irreversíveis ou na escada de confiança é
 > feita **só como proposta** neste documento, para revisão humana.
@@ -87,6 +88,26 @@ Níveis: **0** observar · **1** sugerir (pede) · **2** agir e avisar ·
   classificá-las no manifesto.
 - Ações com efeito derivadas de intenção `trusted: false` sempre pedem,
   independente do nível.
+
+## Como está implementado
+
+| Plano | Código |
+|---|---|
+| Intenção | `Intent` (Core) |
+| `S = R·C·U·(1 − I·F)` e limiares 0,3 / 0,6 | `IntentScorer` |
+| `F` do foco (digitando, tela cheia, reunião) | `FocusEstimator`, a partir do `world.update` |
+| Calibração de `C` | `ConfidenceCalibrator` (a partir de 5 amostras; nunca aumenta além do declarado) |
+| Escada por classe e escopo | `TrustLadder` (5 aprovações em 14 dias sobem; recusa ou desfazer desce) |
+| Regra "sempre" com escopo e validade | `PolicyRule` em `casa/policy.yaml`; o escopo é o que o daemon guardou, não o que o corpo mandou; validade máxima de 90 dias |
+| Trava de irreversíveis | `Policy.decide`: `external_effect` sempre pede, `destructive` pede duas vezes, `financial` é negada; nada disso passa por pontuação, escada ou regra |
+| Conteúdo observado | ação com efeito derivada dele sempre pede |
+| Reflexos baratos | `Reflexes`: teste falhou no terminal → repetir a bateria (`compute`) e apontar o arquivo |
+| Histórico com desfazer | `casa/historico.jsonl`; `glyphd historico`, `glyphd desfazer <id>` (desfazer rebaixa a escada) |
+| Freio | `input.brake` (⌃⌥⌘.): cancela o que roda, nega pendências, todos para casa |
+
+Onde o Glyph age sozinho: só nos repositórios marcados em `config.yaml`
+(`sensores.repos`). Fora deles, uma falha de teste só faz ele ir olhar o
+terminal, sem falar.
 
 ## Reversibilidade na prática
 
