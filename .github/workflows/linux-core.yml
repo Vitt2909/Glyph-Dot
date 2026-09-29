@@ -21,11 +21,15 @@ jobs:
         run: swift build
       - name: Testes
         run: swift test --parallel
+      - name: Fumaça do glyphd (run, ask, agente externo)
+        run: Scripts/fumaca.sh
       - name: glyphd mock valida o próprio protocolo
         run: swift run glyphd mock --fast | swift run glyphd validate
+      - name: O pack de exemplo é válido
+        run: swift run glyphd packs validar Examples/pack-exemplo
       - name: A arte está em dia com o código
         run: |
           swift run glyph-art
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          git diff --exit-code -- docs/art Packs/default/stickers || {
+          git diff --exit-code -- docs/art Packs/default/stickers Examples/pack-exemplo || {
             echo "::error::A arte mudou. Rode Scripts/gerar-arte.sh e faça commit."; exit 1; }
