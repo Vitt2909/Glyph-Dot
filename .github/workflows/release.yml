@@ -1,0 +1,27 @@
+name: release
+
+# Publica um zip do app quando uma tag v* é enviada.
+# Sem Developer ID o app sai com assinatura ad hoc: o Gatekeeper vai avisar
+# (veja README, "Instalação").
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Testes
+        run: swift test
+      - name: Monta Glyph.app
+        run: Scripts/bundle-app.sh release
+      - name: Zip
+        run: ditto -c -k --keepParent build/Glyph.app "Glyph-${GITHUB_REF_NAME}.zip"
+      - name: Publica release (rascunho)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" "Glyph-${GITHUB_REF_NAME}.zip" --draft --generate-notes

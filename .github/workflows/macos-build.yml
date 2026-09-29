@@ -1,0 +1,28 @@
+name: macos-build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Versão
+        run: swift --version
+      - name: Build (inclui GlyphBody e o app)
+        run: swift build
+      - name: Testes
+        run: swift test
+      - name: Monta Glyph.app (assinatura ad hoc)
+        run: Scripts/bundle-app.sh release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Glyph.app
+          path: build/Glyph.app
+          retention-days: 7

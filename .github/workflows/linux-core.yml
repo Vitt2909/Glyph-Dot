@@ -1,0 +1,25 @@
+name: linux-core
+
+# GlyphCore e glyphd precisam compilar e passar nos testes em Linux.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container: swift:6.1-noble
+    steps:
+      - uses: actions/checkout@v4
+      - name: Versão
+        run: swift --version
+      - name: Build
+        run: swift build
+      - name: Testes
+        run: swift test --parallel
+      - name: glyphd mock valida o próprio protocolo
+        run: swift run glyphd mock --fast | swift run glyphd validate
