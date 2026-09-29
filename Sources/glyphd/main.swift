@@ -83,15 +83,26 @@ case "run":
             config.cerebro = c
         }
         let log = makeLog()
-        let tools = Runtime.tools(config)
-        let agent = AgentLoop(brain: try Runtime.brain(config.cerebro?.principal), tools: tools)
+        var tools = Runtime.tools(config)
+        let mainBrain = try Runtime.brain(config.cerebro?.principal)
+        var roleBrains: [SpecialistRole: any Brain] = [:]
+        for (name, cfg) in config.equipe?.cerebros ?? [:] {
+            if let role = SpecialistRole(rawValue: name) { roleBrains[role] = try Runtime.brain(cfg) }
+        }
+        let teamOn = config.equipe?.ativa ?? true
         let policy = PolicyStore(policyURL: paths.policy, trustURL: paths.trust)
         let history = HistoryStore(url: paths.history)
         let sensorPath = (config.sensores?.terminal ?? true) ? paths.sensorSocket.path : nil
+        let serverBox = ServerBox()
+        let team = Team(brainFor: { [roleBrains] role in roleBrains[role] ?? mainBrain }, policy: policy, history: history,
+                        body: ForwardingBody(box: serverBox), log: log)
+        if teamOn { tools.add(DelegateTool(team: team)) }
+        let agent = AgentLoop(brain: mainBrain, tools: tools)
         let server = GlyphServer(options: .init(socketPath: paths.socket.path, sensorSocketPath: sensorPath,
                                                 verifier: Runtime.verifier(config),
                                                 trustUnverifiedBodies: args.contains("--dev")),
                                  agent: agent, log: log, policy: policy, history: history)
+        serverBox.server = server
         let repos = config.sensores?.repos ?? []
         let autonomy = AutonomyEngine(tools: tools, policy: policy, history: history,
                                       context: Reflexes.Context(watched: repos), body: server, log: log)
@@ -112,6 +123,7 @@ case "run":
                 try await server.start()
                 await server.attach(autonomy: autonomy)
                 await server.attach(goals: goalRunner)
+                if teamOn { await goalRunner.setTeam(team) }
                 await server.attach(task: Task {
                     while !Task.isCancelled {
                         let open = await board.tasks.contains { $0.isOpen }
@@ -349,6 +361,17 @@ default:
 }
 
 final class ErrorBox: @unchecked Sendable { var error: Error? }
+
+/// O time é criado antes do servidor; esta caixa liga os dois.
+final class ServerBox: @unchecked Sendable { var server: GlyphServer? }
+
+struct ForwardingBody: BodyChannel {
+    let box: ServerBox
+    func cue(_ message: Message) async { await box.server?.cue(message) }
+    func approve(_ request: ApprovalRequest, key: TrustKey?) async -> Bool { await box.server?.approve(request, key: key) ?? false }
+    func world() async -> WorldUpdate? { await box.server?.world() }
+    func isPaused() async -> Bool { await box.server?.isPaused() ?? false }
+}
 
 /// Sem corpo (comandos de terminal).
 struct NoBody: BodyChannel {

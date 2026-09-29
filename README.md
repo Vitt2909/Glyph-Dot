@@ -139,6 +139,17 @@ ele volta segurando o **diário** (`casa/diario/AAAA-MM-DD.md`: feito · tentado
 sem sucesso · precisa de você · custos); clique nele para abrir. `glyphd
 objetivos`, `glyphd quadro`, `glyphd diario`. Duplo clique no Glyph abre a casa.
 
+### Multi-Glyph
+
+<p align="center"><img src="docs/art/equipe.svg" alt="O Glyph assobia; o Builder e o Auditor saem do Dot, conversam e voltam" width="630"></p>
+
+O Glyph principal é o supervisor. Nas tarefas de código, o **Builder** muda e
+o **Auditor** confere os testes e o diff, com **veto**: o trabalho só é dado
+como pronto depois que ele aprova. Veto devolve ao Builder; depois de 2 rodadas,
+escala para você. Nos chamados, ele pode chamar o **Pesquisador** ou o
+**Designer**. No máximo 3 ao mesmo tempo, cada um com prompt, ferramentas e
+orçamento próprios (`equipe` no `config.yaml`, com cérebro por papel).
+
 ## Instalação
 
 Ainda não há binário assinado. Para o app abrir sem aviso do Gatekeeper é
@@ -153,7 +164,7 @@ releases, o macOS vai avisar que o desenvolvedor não foi verificado.
 - [x] **M2 — Cérebro reativo:** `glyphd` como LaunchAgent, Claude/OpenAI/Ollama, bolhas, `shell` em sandbox e busca na web.
 - [x] **M3 — Autonomia v1:** sensores (terminal, git), intenções, pontuação, escada de confiança, regras "sempre", histórico com desfazer, freio (⌃⌥⌘.).
 - [x] **M4 — Objetivos e turno noturno:** `goals.yaml`, quadro, orçamentos, worktrees `glyph/*`, até 3 abordagens, lições, diário da manhã, casa.
-- [ ] **M5 — Multi-Glyph:** supervisor, Builder, Pesquisador, Auditor com veto.
+- [x] **M5 — Multi-Glyph:** supervisor, Builder, Pesquisador, Designer, Auditor com veto (máx. 3).
 - [ ] **M6 — Ecossistema:** agentes externos, packs da comunidade, viagem entre dispositivos.
 
 ## Contribuindo
