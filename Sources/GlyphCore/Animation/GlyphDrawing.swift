@@ -18,9 +18,12 @@ public struct GlyphDrawing: Sendable, Equatable {
     public var budgetDots: Int
     /// Opacidade geral (esmaece ao dormir, some ao entrar em casa).
     public var opacity: Double
+    /// Sticker segurado na mão (cartão de aprovação, folha de memória…).
+    public var held: Sticker?
 
     public init(position: Vec2, skeleton: SkeletonPoints, dot: DotDrawing, eyes: EyesDrawing? = nil,
-                boilFrame: Int = 0, bubble: String? = nil, budgetDots: Int = 0, opacity: Double = 1) {
+                boilFrame: Int = 0, bubble: String? = nil, budgetDots: Int = 0, opacity: Double = 1,
+                held: Sticker? = nil) {
         self.position = position
         self.skeleton = skeleton
         self.dot = dot
@@ -29,6 +32,15 @@ public struct GlyphDrawing: Sendable, Equatable {
         self.bubble = bubble
         self.budgetDots = budgetDots
         self.opacity = opacity
+        self.held = held
+    }
+
+    /// Onde o sticker segurado fica: ao lado da mão mais à frente.
+    public var heldAnchor: Vec2 {
+        let sk = skeleton
+        let front = abs(sk.handL.x) > abs(sk.handR.x) ? sk.handL : sk.handR
+        let side: Double = front.x >= 0 ? 1 : -1
+        return front + Vec2(side * 8, 3)
     }
 
     /// Caixa que envolve o desenho, em coordenadas globais (usada como hitbox).

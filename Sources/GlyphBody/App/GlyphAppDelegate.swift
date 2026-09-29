@@ -14,13 +14,15 @@ public final class GlyphAppDelegate: NSObject, NSApplicationDelegate {
     private let started = Date()
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
-        let (clips, errors) = ClipLibrary.load(pack: PackLocator.find())
-        for e in errors { FileHandle.standardError.write(Data("pack: \(e)\n".utf8)) }
+        let pack = PackLocator.find()
+        let (clips, errors) = ClipLibrary.load(pack: pack)
+        let (stickers, stickerErrors) = Sticker.load(pack: pack)
+        for e in errors + stickerErrors { FileHandle.standardError.write(Data("pack: \(e)\n".utf8)) }
         if clips.clips.isEmpty {
             FileHandle.standardError.write(Data("pack: nenhum clipe encontrado; o Glyph vai ficar parado\n".utf8))
         }
 
-        let body = BodyController(clips: clips)
+        let body = BodyController(clips: clips, stickers: stickers)
         self.body = body
 
         if ProcessInfo.processInfo.environment["GLYPH_MOCK"] == "1" {
