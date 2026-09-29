@@ -51,8 +51,8 @@ ignorados, para permitir extensões compatíveis.
 | corpo → cérebro | `input.brake` | `engage` (bool): freio global. Pausa tudo, cancela tarefas, nega aprovações pendentes, todos voltam para casa |
 | corpo → cérebro | `approval.response` | `requestId`, `decision` (`approve`\|`deny`\|`always`), `scope`? e `expires`? quando `always` |
 | cérebro → corpo | `body.goto` | `target` (`window`\|`point`\|`home`); `pid` + `frame` {x,y,w,h} para janela; `point` {x,y} para ponto |
-| cérebro → corpo | `body.emote` | `clip`, `dot`? (modo do Dot), `sticker`? (id de um sticker do pack para segurar) |
-| cérebro → corpo | `bubble.say` | `text`, `durationSec` (0 < d ≤ 30, padrão 4) |
+| cérebro → corpo | `body.emote` | `clip`, `dot`? (modo do Dot), `sticker`? (id de um sticker do pack para segurar), `agentId`? (especialista) |
+| cérebro → corpo | `bubble.say` | `text`, `durationSec` (0 < d ≤ 30, padrão 4), `agentId`? (quem fala: especialista) |
 | cérebro → corpo | `approval.request` | `action`, `target`, `class`, `why`, `timeoutSec` (0 < t ≤ 3600) |
 | cérebro → corpo | `task.update` | `taskId`, `step`, `progress` (0…1), `budgetRemaining`? |
 | cérebro → corpo | `agent.spawn` | `agentId`, `role` (`builder`\|`researcher`\|`designer`\|`auditor`) |

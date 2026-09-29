@@ -68,6 +68,14 @@ public struct DaemonConfig: Decodable, Sendable, Equatable {
     public var ferramentas: Ferramentas?
     public var sensores: Sensores?
     public var turno_noturno: TurnoNoturno?
+    public var equipe: Equipe?
+
+    public struct Equipe: Decodable, Sendable, Equatable {
+        /// Builder + Auditor nas tarefas; Pesquisador/Designer nos chamados.
+        public var ativa: Bool?
+        /// Cérebro por papel (builder, researcher, designer, auditor). Padrão: o principal.
+        public var cerebros: [String: DaemonConfig.BrainConfig]?
+    }
 
     public struct TurnoNoturno: Decodable, Sendable, Equatable {
         /// Impede o sono ocioso durante tarefa noturna, só na tomada. Opt-in.
@@ -116,6 +124,12 @@ public struct DaemonConfig: Decodable, Sendable, Equatable {
       # Repositórios onde o Glyph pode agir sozinho (dentro da escada de confiança).
       repos: []
       git_intervalo: 20
+
+    equipe:
+      # Multi-Glyph: Builder faz, Auditor confere (com veto); Pesquisador e Designer nos chamados.
+      ativa: true
+      # cerebros:
+      #   auditor: { provider: anthropic, model: claude-opus-5-5, effort: high }
 
     turno_noturno:
       # Mantém o Mac acordado só enquanto houver tarefa noturna e só na tomada.

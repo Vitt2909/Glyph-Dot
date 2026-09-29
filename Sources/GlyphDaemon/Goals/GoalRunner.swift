@@ -94,6 +94,10 @@ public actor GoalRunner {
     private var goalsProvider: @Sendable () -> [Goal]
     private var running = false
     public var nightShift: Bool = false
+    /// Com time, cada tentativa passa pelo Builder e pelo Auditor (M5).
+    public var team: Team?
+
+    public func setTeam(_ t: Team?) { team = t }
 
     public init(paths: GlyphPaths, brain: any Brain, policy: PolicyStore, history: HistoryStore, board: BoardStore,
                 body: any BodyChannel, log: DaemonLog, goals: @escaping @Sendable () -> [Goal]) {
@@ -216,7 +220,10 @@ public actor GoalRunner {
             let attempt = await attemptFix(goal: goal, task: task, workspace: workspace, success: success,
                                            lastFailure: lastFailure, ledger: &ledger)
             await board.setLedger(ledger, goal: goal.id, day: day)
-            let after = await verify(success, in: workspace.path)
+            var after = await verify(success, in: workspace.path)
+            if after.passed && !attempt.approved {
+                after = Check(passed: false, output: "o Auditor vetou: \(attempt.hypothesis)")
+            }
             let record = BoardTask.Attempt(hypothesis: attempt.hypothesis,
                                            result: after.passed ? "passou" : String(after.output.suffix(300)),
                                            success: after.passed)
@@ -258,10 +265,29 @@ public actor GoalRunner {
 
     struct AttemptResult {
         var hypothesis: String
+        /// `false` se o Auditor vetou até o fim: mesmo com a verificação
+        /// passando, não conta como pronto.
+        var approved: Bool = true
     }
 
     func attemptFix(goal: Goal, task: BoardTask, workspace: Workspace, success: String, lastFailure: String,
                     ledger: inout BudgetLedger) async -> AttemptResult {
+        if let team {
+            let previous = task.attempts.map { "- \($0.hypothesis) → \($0.result.prefix(120))" }.joined(separator: "\n")
+            let prompt = """
+            Objetivo: \(goal.descricao)
+            Critério de sucesso: `\(success)` precisa sair com código 0.
+            A verificação falhou:
+            \(markUntrusted(String(lastFailure.suffix(4000)), source: "verificação"))
+            Tentativas anteriores (faça algo diferente):
+            \(previous.isEmpty ? "(nenhuma)" : previous)
+            """
+            let out = await team.buildAndAudit(task: prompt, workspace: workspace, verify: success, label: "objetivo \(goal.id)")
+            ledger.charge(actions: max(1, out.steps), input: out.usage.inputTokens, output: out.usage.outputTokens,
+                          price: ModelPrice.known(brain.id))
+            let vetoNote = out.vetoes.isEmpty ? "" : " (vetos: \(out.vetoes.joined(separator: "; ")))"
+            return AttemptResult(hypothesis: out.hypothesis + vetoNote, approved: out.approved)
+        }
         let tools = ToolRegistry([
             ReadFileTool(roots: [workspace.path]),
             WriteFileTool(roots: [workspace.path]),
@@ -306,7 +332,7 @@ public actor GoalRunner {
         let hyp = answer.split(separator: "\n").first { $0.lowercased().hasPrefix("hipótese") || $0.lowercased().hasPrefix("hipotese") }
             .map { String($0.split(separator: ":", maxSplits: 1).last ?? "").trimmingCharacters(in: .whitespaces) }
             ?? String(answer.prefix(80))
-        return AttemptResult(hypothesis: hyp.isEmpty ? "sem hipótese registrada" : hyp)
+        return AttemptResult(hypothesis: hyp.isEmpty ? "sem hipótese registrada" : hyp, approved: true)
     }
 
     struct Check {
@@ -403,6 +429,9 @@ public enum Diary {
         for t in tasks {
             for a in t.attempts where !a.success { tried.append("- \(t.title): \(a.hypothesis)") }
         }
+        // Vetos do Auditor, mesmo quando a tentativa acabou aprovada depois.
+        tried += entries.filter { $0.summary.contains("veto do Auditor") }
+            .map { "- \($0.summary): \($0.detail ?? "")" }
         let needs = tasks.filter { $0.status == .needsYou || $0.status == .blocked || ($0.note?.contains("precisa de você") ?? false) }
             .map { "- \($0.title): \($0.note ?? "")" }
         let usd = ledgers.reduce(0) { $0 + $1.usd }

@@ -246,3 +246,59 @@ do {
                                   title: "Glyph andando pelas janelas"),
               out.appendingPathComponent("hero.svg"))
 }
+
+// MARK: - Multi-Glyph: o time
+
+do {
+    let W = 420.0, H = 150.0, zoom = 1.5
+    let screen = ScreenInfo(id: 1, frame: Rect(x: 0, y: 0, width: W, height: H),
+                            visibleFrame: Rect(x: 0, y: 20, width: W, height: H - 20 - 14), menuBarHeight: 14)
+    var engine = GlyphEngine(world: WorldSnapshot(screens: [screen]), clips: clips, stickers: stickers, start: Vec2(W / 2, 22))
+    engine.needs.curiosity = 0
+    engine.needs.sociability = 0
+    engine.needs.energy = 1
+    let fps = 12.0, total = 9.0
+    struct Line { var at: Double; var text: String; var who: String? }
+    let script: [Line] = [
+        Line(at: 3.4, text: "terminou?", who: nil),
+        Line(at: 4.2, text: "sim.", who: "builder"),
+        Line(at: 5.0, text: "não.", who: "auditor"),
+        Line(at: 6.4, text: "aprovado.", who: "auditor"),
+    ]
+    var frames: [StickerShapes] = []
+    var bubbles: [(text: String, anchor: Vec2, start: Double, end: Double)] = []
+    var said = Set<Int>()
+    for i in 0..<Int(total * fps) {
+        let t = Double(i) / fps
+        if abs(t - 0.5) < 1e-6 { engine.receive(.agentSpawn(AgentSpawn(agentId: "builder-1", role: .builder))) }
+        if abs(t - 1.25) < 1e-6 { engine.receive(.agentSpawn(AgentSpawn(agentId: "auditor-2", role: .auditor))) }
+        if abs(t - 7.5) < 1e-6 {
+            engine.receive(.agentDespawn(AgentDespawn(agentId: "builder-1")))
+            engine.receive(.agentDespawn(AgentDespawn(agentId: "auditor-2")))
+        }
+        for (k, line) in script.enumerated() where t >= line.at && !said.contains(k) {
+            said.insert(k)
+            let who = line.who.flatMap { key in engine.companions.first { $0.id.hasPrefix(key) } }
+            let base = who?.body.position ?? engine.body.position
+            bubbles.append((line.text, base + Vec2(0, SkeletonMetrics().height + 10), line.at, line.at + 1.4))
+        }
+        engine.advance(by: 1 / fps)
+        var merged = StickerShapes()
+        for d in engine.drawings where d.opacity > 0.05 {
+            let s = StickerShapes.build(d)
+            merged.strokes += s.strokes; merged.fills += s.fills; merged.discs += s.discs
+        }
+        frames.append(merged)
+    }
+    let c = SVGRenderer.Canvas(width: W, height: H, scale: zoom)
+    var scenery = ##"<path d="M\##(SVGRenderer.num(20 * zoom)) \##(SVGRenderer.num((H - 20) * zoom + 1.5))H\##(SVGRenderer.num((W - 20) * zoom))" stroke="#c9c4b8" stroke-width="3" stroke-linecap="round"/>"##
+    var overlay = ""
+    for b in bubbles {
+        let k0 = SVGRenderer.num(b.start / total), k1 = SVGRenderer.num(min(b.end / total, 1))
+        overlay += ##"<g opacity="0"><animate attributeName="opacity" dur="\##(SVGRenderer.num(total))s" repeatCount="indefinite" calcMode="discrete" keyTimes="0;\##(k0);\##(k1)" values="0;1;0"/>\##(SVGRenderer.bubble(b.text, anchor: b.anchor, c))</g>"##
+    }
+    scenery += ""
+    var svg = SVGRenderer.animate(frames, fps: fps, c, background: paper, scenery: scenery, title: "Glyph chamando o time: Builder e Auditor")
+    svg = svg.replacingOccurrences(of: "</svg>", with: overlay + "</svg>")
+    try write(svg, out.appendingPathComponent("equipe.svg"))
+}

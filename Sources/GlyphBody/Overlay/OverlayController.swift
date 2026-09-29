@@ -22,13 +22,18 @@ public final class OverlayController {
 
     /// Desenha o quadro se o Glyph estiver nesta tela; senão esconde.
     public func show(_ drawing: GlyphDrawing?) {
-        guard let drawing, screen.frame.intersects(drawing.bounds.cgRect) else {
-            view.show(nil)
+        show(drawing.map { [$0] } ?? [])
+    }
+
+    /// Vários Glyphs; o primeiro é o principal (o único que recebe mouse).
+    public func show(_ drawings: [GlyphDrawing]) {
+        let here = drawings.filter { screen.frame.intersects($0.bounds.cgRect) }
+        view.show(here)
+        if let main = drawings.first, screen.frame.intersects(main.bounds.cgRect) {
+            toggler.update(panel: panel, hitbox: main.bounds.cgRect)
+        } else {
             panel.ignoresMouseEvents = true
-            return
         }
-        view.show(drawing)
-        toggler.update(panel: panel, hitbox: drawing.bounds.cgRect)
     }
 
     public func close() {

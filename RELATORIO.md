@@ -1,3 +1,43 @@
+# Relatório — M5 Multi-Glyph
+
+Branch: `feat/m5-multi-glyph` (empilhado sobre `feat/m4-objetivos`).
+
+## Feito
+
+| Área | Onde | O quê |
+|---|---|---|
+| Perfis | `SpecialistProfile` | Builder (lê, escreve, testa; chave), Pesquisador (web e leitura; lupa), Designer (lê e propõe; pincel), Auditor (lê e roda testes, não escreve; escudo) |
+| Portão por papel | `SpecialistGate` | Fora do papel nem pede (o Auditor não escreve); irreversível sempre passa pela política |
+| Time | `Team` (actor) | Máximo de 3 especialistas simultâneos (o 4º espera vaga); cada um com prompt, ferramentas e orçamento próprios; `agent.spawn`/`agent.despawn` para o corpo |
+| Veto | `Team.buildAndAudit` | Builder faz → Auditor confere: primeiro os fatos (o comando de verificação; teste falhando = veto sem gastar modelo), depois o julgamento (diff + "VEREDITO: APROVADO / VETO: motivo"; sem veredito claro = veto). Veto volta ao Builder com o motivo; depois de 2 rodadas, escala |
+| Objetivos | `GoalRunner` + `Team` | Cada abordagem passa pelo Builder e pelo Auditor; verificação passando **não basta** se o Auditor vetou até o fim |
+| Supervisor | `DelegateTool` | Nos chamados, o Glyph pode chamar o Pesquisador ou o Designer; o que eles trazem volta como conteúdo observado |
+| Visual | `GlyphEngine.companions` | Assobio (clipe `whistle`, Dot em `split`), o especialista salta da cabeça, anda ao lado segurando o sticker do papel, fala em bolha própria (`agentId`) e volta para o Dot; o corpo desenha vários Glyphs e bolhas |
+| Protocolo | `agentId` | Opcional em `bubble.say` e `body.emote` |
+| Config | `equipe` | `ativa`, `cerebros` por papel (ex.: Auditor com esforço `high`) |
+
+## Aceite
+
+| Critério | Estado |
+|---|---|
+| Tarefa de código passa pelo Auditor; um veto devolve ao Builder e aparece no diário | ✅ `TeamTests.testGoalWithTeamVetoAppearsInDiary`: a gambiarra passava no teste, o Auditor vetou pelo diff, o Builder refez, o ramo recebeu a versão aprovada, e o diário registra "veto do Auditor: gambiarra no valor" |
+| No máximo 3 especialistas | ✅ `testAtMostThreeSpecialists`, `CompanionTests.testAtMostThreeCompanions` |
+| Visual (assobio, sai do Dot, "terminou?" · "sim." · "não.") | ✅ `testVetoReturnsToBuilderThenApproves` (sequência exata de bolhas), `CompanionTests`; cena em `docs/art/equipe.svg` |
+
+`swift test`: **224 testes** verdes.
+
+## Decisões tomadas sozinho
+
+1. **O Auditor primeiro olha os fatos:** se a verificação falha, é veto sem
+   chamar modelo (mais barato e mais confiável).
+2. **Sem veredito explícito = veto** (conservador).
+3. **Especialista fora do seu papel não pede aprovação:** é negado. Pedir
+   para o Auditor escrever código seria um desvio de papel, não uma decisão sua.
+4. **Designer não escreve código**: propõe.
+5. **Especialistas não chamam especialistas** (só o supervisor delega).
+
+---
+
 # Relatório — M4 Objetivos e turno noturno
 
 Branch: `feat/m4-objetivos` (empilhado sobre `feat/m3-autonomia`).
