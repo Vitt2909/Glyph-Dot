@@ -57,20 +57,40 @@ public enum UserFocus: String, Sendable, Codable {
     case meeting
 }
 
+/// Uma janela resumida para o cérebro: dono e posição. Nunca o título.
+public struct WindowSummary: Sendable, Equatable, Codable {
+    public var pid: Int32
+    public var app: String
+    public var frame: Rect
+
+    public init(pid: Int32, app: String, frame: Rect) {
+        self.pid = pid
+        self.app = app
+        self.frame = frame
+    }
+}
+
 public struct WorldUpdate: Sendable, Equatable, Codable {
     public var activeApp: String?
     public var activePID: Int32?
     public var idleSeconds: Double
     public var cursorNearGlyph: Bool
     public var focus: UserFocus
+    /// Janelas visíveis, da frente para trás (no máximo ~12).
+    public var windows: [WindowSummary]?
+    /// Onde o Glyph está (pés), para ele poder "voltar" depois de ir a uma janela.
+    public var glyph: Vec2?
 
     public init(activeApp: String? = nil, activePID: Int32? = nil, idleSeconds: Double = 0,
-                cursorNearGlyph: Bool = false, focus: UserFocus = .normal) {
+                cursorNearGlyph: Bool = false, focus: UserFocus = .normal,
+                windows: [WindowSummary]? = nil, glyph: Vec2? = nil) {
         self.activeApp = activeApp
         self.activePID = activePID
         self.idleSeconds = idleSeconds
         self.cursorNearGlyph = cursorNearGlyph
         self.focus = focus
+        self.windows = windows
+        self.glyph = glyph
     }
 }
 

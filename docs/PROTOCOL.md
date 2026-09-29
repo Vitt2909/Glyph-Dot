@@ -46,7 +46,7 @@ ignorados, para permitir extensões compatíveis.
 | Direção | `type` | Campos |
 |---|---|---|
 | ambos | `hello` | `role` (`body`\|`brain`), `protocolVersions` [int], `capabilities` [string], `name`? |
-| corpo → cérebro | `world.update` | `activeApp`?, `activePID`?, `idleSeconds`, `cursorNearGlyph`, `focus` (`normal`\|`typing`\|`fullscreen`\|`meeting`) |
+| corpo → cérebro | `world.update` | `activeApp`?, `activePID`?, `idleSeconds`, `cursorNearGlyph`, `focus` (`normal`\|`typing`\|`fullscreen`\|`meeting`), `windows`? [{`pid`, `app`, `frame`}] (sem títulos), `glyph`? {x,y} |
 | corpo → cérebro | `input.summon` | `source` (`hotkey`\|`click`\|`voice`), `text`? |
 | corpo → cérebro | `approval.response` | `requestId`, `decision` (`approve`\|`deny`\|`always`), `scope`? e `expires`? quando `always` |
 | cérebro → corpo | `body.goto` | `target` (`window`\|`point`\|`home`); `pid` + `frame` {x,y,w,h} para janela; `point` {x,y} para ponto |

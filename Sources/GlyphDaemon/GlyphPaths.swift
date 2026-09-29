@@ -27,6 +27,8 @@ public struct GlyphPaths: Sendable, Equatable {
     public var database: URL { casa.appendingPathComponent("glyph.sqlite") }
     public var goals: URL { casa.appendingPathComponent("goals.yaml") }
     public var policy: URL { casa.appendingPathComponent("policy.yaml") }
+    public var config: URL { casa.appendingPathComponent("config.yaml") }
+    public var logs: URL { support.appendingPathComponent("logs", isDirectory: true) }
 
     /// Cria a estrutura da casa (idempotente). Permissões 0700: é memória pessoal.
     public func ensureCasa(fileManager fm: FileManager = .default) throws {
