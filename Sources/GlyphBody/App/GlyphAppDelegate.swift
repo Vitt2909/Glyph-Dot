@@ -14,6 +14,7 @@ public final class GlyphAppDelegate: NSObject, NSApplicationDelegate {
     private let started = Date()
     private lazy var summonPanel = SummonPanel()
     private lazy var approvalCard = ApprovalCard()
+    private lazy var homePanel = HomePanelController()
     private var braked = false
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
@@ -43,6 +44,7 @@ public final class GlyphAppDelegate: NSObject, NSApplicationDelegate {
             self.link = link
         }
 
+        body.onOpenHome = { [weak self] in self?.homePanel.show() }
         summonPanel.onSubmit = { [weak self] text in self?.summon(text) }
         approvalCard.onAnswer = { [weak self] id, decision in
             self?.link?.send(.approvalResponse(ApprovalResponse(requestId: id, decision: decision)))

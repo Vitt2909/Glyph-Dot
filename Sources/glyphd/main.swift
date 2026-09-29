@@ -21,6 +21,9 @@ uso: glyphd <comando>
   historico [n]             o que ele fez (sozinho ou a pedido)
   desfazer <id>             desfaz uma ação que tem inversa
   confianca                 escada de confiança e regras "sempre"
+  objetivos                 valida e lista o casa/goals.yaml
+  quadro                    tarefas dos objetivos e tentativas
+  diario                    escreve o diário das últimas 24 h agora
   status                    diz se o glyphd está respondendo
   paths                     mostra onde fica a casa
   mock [--fast] [--loop]    imprime o roteiro do cérebro falso (JSON por linha)
@@ -92,12 +95,31 @@ case "run":
         let repos = config.sensores?.repos ?? []
         let autonomy = AutonomyEngine(tools: tools, policy: policy, history: history,
                                       context: Reflexes.Context(watched: repos), body: server, log: log)
+        let board = BoardStore(url: paths.board)
+        let goalsURL = paths.goals
+        let goalRunner = GoalRunner(paths: paths, brain: agent.brain, policy: policy, history: history, board: board,
+                                    body: server, log: log, goals: {
+            // Relido a cada uso: editar o goals.yaml vale na hora.
+            let text = (try? String(contentsOf: goalsURL, encoding: .utf8)) ?? ""
+            return Goal.load(yaml: text).goals
+        })
+        let power = NightPower()
+        let keepAwake = config.turno_noturno?.manter_acordado ?? false
         let started = DispatchSemaphore(value: 0)
         let box = ErrorBox()
         Task {
             do {
                 try await server.start()
                 await server.attach(autonomy: autonomy)
+                await server.attach(goals: goalRunner)
+                await server.attach(task: Task {
+                    while !Task.isCancelled {
+                        let open = await board.tasks.contains { $0.isOpen }
+                        if keepAwake && open { _ = power.hold() } else { power.release() }
+                        await server.heartbeat()
+                        try? await Task.sleep(nanoseconds: 30_000_000_000)
+                    }
+                })
                 if !repos.isEmpty {
                     let watcher = GitWatcher(repos: repos, interval: config.sensores?.git_intervalo ?? 20) { e in
                         await server.sensorEvent(e)
@@ -243,6 +265,42 @@ case "confianca":
     }
     done.wait()
 
+case "objetivos":
+    let text = (try? String(contentsOf: paths.goals, encoding: .utf8)) ?? ""
+    let (goals, errors) = Goal.load(yaml: text)
+    if goals.isEmpty && errors.isEmpty { print("nenhum objetivo em \(paths.goals.path)") }
+    for g in goals {
+        let classes = g.allowedClasses.map(\.rawValue).sorted().joined(separator: ", ")
+        print("\(g.id): \(g.descricao)\n  escopo \(g.escopo ?? "-") · horário \(g.horario ?? "sempre") · classes [\(classes)]")
+    }
+    for e in errors { print("ERRO: \(e)") }
+    exit(errors.isEmpty ? 0 : 1)
+
+case "quadro":
+    let done = DispatchSemaphore(value: 0)
+    Task {
+        let tasks = await BoardStore(url: paths.board).tasks
+        if tasks.isEmpty { print("quadro vazio") }
+        for t in tasks.suffix(30) {
+            print("[\(t.status.rawValue)] \(t.title)\(t.branch.map { " (\($0))" } ?? "")")
+            for (i, a) in t.attempts.enumerated() { print("    \(i + 1). \(a.success ? "✓" : "✗") \(a.hypothesis)") }
+            if let n = t.note { print("    \(n)") }
+        }
+        done.signal()
+    }
+    done.wait()
+
+case "diario":
+    let done = DispatchSemaphore(value: 0)
+    Task {
+        let url = await GoalRunner(paths: paths, brain: OfflineBrain(), policy: PolicyStore(policyURL: nil, trustURL: nil),
+                                   history: HistoryStore(url: paths.history), board: BoardStore(url: paths.board),
+                                   body: NoBody(), log: makeLog(echo: false), goals: { [] }).writeDiary()
+        print(url.path)
+        done.signal()
+    }
+    done.wait()
+
 case "status":
     do {
         let conn = try UnixSocketClient.connect(path: paths.socket.path)
@@ -291,6 +349,14 @@ default:
 }
 
 final class ErrorBox: @unchecked Sendable { var error: Error? }
+
+/// Sem corpo (comandos de terminal).
+struct NoBody: BodyChannel {
+    func cue(_ message: Message) async {}
+    func approve(_ request: ApprovalRequest, key: TrustKey?) async -> Bool { false }
+    func world() async -> WorldUpdate? { nil }
+    func isPaused() async -> Bool { false }
+}
 
 /// Deixas no terminal: mostra o que o agente faz e pergunta antes de agir.
 struct TerminalCues: AgentCues {

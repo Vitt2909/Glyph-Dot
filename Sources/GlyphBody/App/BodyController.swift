@@ -177,6 +177,7 @@ public final class BodyController: NSObject {
             switch e {
             case let .send(m): onSend?(m)
             case .openHome: onOpenHome?()
+            case let .openFile(path): NSWorkspace.shared.open(URL(fileURLWithPath: path))
             }
         }
     }

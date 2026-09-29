@@ -31,6 +31,7 @@ public struct GlyphPaths: Sendable, Equatable {
     public var config: URL { casa.appendingPathComponent("config.yaml") }
     public var history: URL { casa.appendingPathComponent("historico.jsonl") }
     public var trust: URL { casa.appendingPathComponent("confianca.json") }
+    public var board: URL { casa.appendingPathComponent("quadro.json") }
     public var logs: URL { support.appendingPathComponent("logs", isDirectory: true) }
 
     /// Cria a estrutura da casa (idempotente). Permissões 0700: é memória pessoal.
