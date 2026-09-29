@@ -78,6 +78,32 @@ na barra de menu e mora na notch (ou numa pílula no topo, sem notch).
 
 Botão direito no Glyph → Sair. O app não pede nenhuma permissão.
 
+## O cérebro (`glyphd`)
+
+O Glyph anda sozinho. Para ele pensar, rode o `glyphd`:
+
+```sh
+swift build -c release
+.build/release/glyphd config             # cria ~/Library/Application Support/Glyph/casa/config.yaml
+.build/release/glyphd chave anthropic    # guarda a chave no Keychain (ou exporte ANTHROPIC_API_KEY)
+.build/release/glyphd install            # LaunchAgent: sobe no login
+.build/release/glyphd pair build/Glyph.app   # sem Developer ID: confia neste build para aprovar ações
+```
+
+Depois, **⌃⌥Espaço** abre o campo de chamada: *"quanto está o dólar?"*. Ele
+pensa (o Dot orbita), vai até o navegador, pesquisa de verdade, volta e
+responde numa bolha. Ações que não dá para desfazer aparecem num cartão que ele
+segura; sem resposta, a resposta é não.
+
+| Cérebro | Configuração |
+|---|---|
+| Claude (padrão) | `provider: anthropic`, `model: claude-opus-5-5` |
+| OpenAI | `provider: openai`, `model: <modelo>` |
+| Local (Ollama) | `provider: ollama`, `model: qwen3:8b` |
+| Sem rede | `glyphd run --offline` |
+
+Teste sem corpo: `glyphd ask "que horas são?"`.
+
 ## Instalação
 
 Ainda não há binário assinado. Para o app abrir sem aviso do Gatekeeper é
@@ -89,7 +115,7 @@ releases, o macOS vai avisar que o desenvolvedor não foi verificado.
 
 - [x] **M0 — Fundação:** repositório, licenças, CI, protocolo v0, modo mock, Glyph parado.
 - [ ] **M1 — A criatura muda:** overlay, mundo, física, pathfinding, estilo sticker completo. Sem IA. *(código pronto e testado no Core; falta validar no macOS)*
-- [ ] **M2 — Cérebro reativo:** `glyphd` como LaunchAgent, um cérebro, bolhas, `shell` e `web.search`.
+- [x] **M2 — Cérebro reativo:** `glyphd` como LaunchAgent, Claude/OpenAI/Ollama, bolhas, `shell` em sandbox e busca na web.
 - [ ] **M3 — Autonomia v1:** sensores, intenções, pontuação, escada de confiança, aprovações, freio.
 - [ ] **M4 — Objetivos e turno noturno:** `goals.yaml`, orçamentos, worktrees, diário da manhã.
 - [ ] **M5 — Multi-Glyph:** supervisor, Builder, Pesquisador, Auditor com veto.
