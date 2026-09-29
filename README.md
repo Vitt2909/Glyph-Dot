@@ -112,6 +112,33 @@ terminal, roda a bateria de novo sozinho e aponta o arquivo que quebrou. O que
 não dá para desfazer sempre vira cartão. `glyphd historico` mostra tudo que ele
 fez; `glyphd confianca` mostra a escada; **⌃⌥⌘.** puxa o freio.
 
+### Objetivos e turno noturno
+
+Em `casa/goals.yaml` (formato do plano):
+
+```yaml
+- id: testes-verdes
+  descricao: "Manter os testes do repositório VK passando"
+  escopo: ~/dev/vk
+  gatilhos: [git.commit, shell.exit_nonzero]
+  sucesso: "swift test"
+  classes_permitidas: [read, compute, local_write]
+  orcamento_diario: { acoes: 40, tokens: 300000, usd: 1.50 }
+  horario: noite
+
+- id: resumo-manha
+  descricao: "Deixar um diário do que aconteceu durante a noite"
+  horario: "07:30"
+```
+
+De madrugada ele trabalha num **worktree `glyph/*`** (a main nunca é tocada),
+com orçamento, tentando até **3 abordagens diferentes** com a hipótese de cada
+uma registrada. Se der certo, faz commit no ramo e pede para publicar; se
+ninguém responder, fica para você. Se não der, escala com uma linha. De manhã
+ele volta segurando o **diário** (`casa/diario/AAAA-MM-DD.md`: feito · tentado
+sem sucesso · precisa de você · custos); clique nele para abrir. `glyphd
+objetivos`, `glyphd quadro`, `glyphd diario`. Duplo clique no Glyph abre a casa.
+
 ## Instalação
 
 Ainda não há binário assinado. Para o app abrir sem aviso do Gatekeeper é
@@ -125,7 +152,7 @@ releases, o macOS vai avisar que o desenvolvedor não foi verificado.
 - [ ] **M1 — A criatura muda:** overlay, mundo, física, pathfinding, estilo sticker completo. Sem IA. *(código pronto e testado no Core; falta validar no macOS)*
 - [x] **M2 — Cérebro reativo:** `glyphd` como LaunchAgent, Claude/OpenAI/Ollama, bolhas, `shell` em sandbox e busca na web.
 - [x] **M3 — Autonomia v1:** sensores (terminal, git), intenções, pontuação, escada de confiança, regras "sempre", histórico com desfazer, freio (⌃⌥⌘.).
-- [ ] **M4 — Objetivos e turno noturno:** `goals.yaml`, orçamentos, worktrees, diário da manhã.
+- [x] **M4 — Objetivos e turno noturno:** `goals.yaml`, quadro, orçamentos, worktrees `glyph/*`, até 3 abordagens, lições, diário da manhã, casa.
 - [ ] **M5 — Multi-Glyph:** supervisor, Builder, Pesquisador, Auditor com veto.
 - [ ] **M6 — Ecossistema:** agentes externos, packs da comunidade, viagem entre dispositivos.
 

@@ -1,3 +1,51 @@
+# Relatório — M4 Objetivos e turno noturno
+
+Branch: `feat/m4-objetivos` (empilhado sobre `feat/m3-autonomia`).
+
+## Feito
+
+| Área | Onde | O quê |
+|---|---|---|
+| Objetivos | `Core/Goals/Goal.swift` | `goals.yaml` no formato do plano; validação recusa classe irreversível em `classes_permitidas`, comando de sucesso destrutivo e horário inválido; horários `sempre`, `noite`, `HH:MM` |
+| Orçamentos | `Budget`, `BudgetLedger`, `ModelPrice` | Ações, tokens, tempo e dólares por tarefa e por dia; preços dos modelos Claude atuais; Ollama custa zero |
+| Quadro | `BoardTask`, `BoardStore` (`casa/quadro.json`) | Tarefas por objetivo, tentativas com hipótese e resultado, estado `precisa_de_voce` |
+| Espaço de trabalho | `WorkspaceManager` | `git worktree add -b glyph/<tarefa>` (nunca a main nem a cópia do usuário); sem git, checkpoint em `casa/journal/<id>/` |
+| Ferramentas da tarefa | `ReadFileTool`, `WriteFileTool` | Presas ao worktree; nunca em `.git`; leitura marcada como conteúdo observado |
+| Executor | `GoalRunner` | Verifica → cria tarefa → worktree → até 3 abordagens diferentes (a hipótese de cada uma entra no prompt da próxima) → commit no ramo → pede para publicar (irreversível: sempre pede) → escala com uma linha |
+| Portão do objetivo | `GoalGate` | O que o objetivo autoriza e é reversível roda sem pedir **dentro do worktree**; o resto segue a política |
+| Lições | `casa/skills/_rascunhos/<tarefa>.md` | Quando dá certo depois de falhar; só vira skill ativa com aprovação |
+| Diário | `Diary`, `casa/diario/AAAA-MM-DD.md` | Feito · tentado sem sucesso · precisa de você · custos; `diary.ready` para o corpo |
+| Turno noturno | batimento de 30 s | Noite (22h–7h) ou usuário ausente há mais de 10 min; `NightPower` segura o sono ocioso só com tarefa aberta, só na tomada, só com opt-in |
+| Corpo | mochila, diário, casa | Clipe `backpack` com a mochila; de manhã volta segurando o diário (clique abre); duplo clique abre a casa (SwiftUI, só leitura: Memória · Tarefas · Skills · Histórico · Cérebro · Política) |
+
+## Aceite
+
+| Critério | Estado |
+|---|---|
+| "Testes verdes" ativo à noite → de manhã há um ramo `glyph/*` com correção proposta e um diário explicando; a main está intocada | ✅ `GoalRunnerTests.testNightShiftProposesFixOnGlyphBranchAndWritesDiary`: git real, a 1ª abordagem falha, a 2ª (diferente) passa; commit no ramo; `main` e a cópia do usuário iguais; o diário cita o ramo, a hipótese que falhou e "publicar: precisa de você" |
+| 3 falhas → escala | ✅ `testThreeFailuresEscalate` |
+| Orçamento para o trabalho | ✅ `testBudgetStopsWork` |
+
+`swift test`: **216 testes** verdes.
+
+## Decisões tomadas sozinho
+
+1. **O comando de `sucesso` é uma verificação declarada pelo usuário.** Roda
+   sem cartão, mas é recusado na validação se o classificador o vir como
+   destrutivo.
+2. **`classes_permitidas` valem como autorização dentro do worktree** do
+   objetivo. Classes irreversíveis nem são aceitas no arquivo.
+3. **Tentativa que falhou é descartada** (`reset --hard`/`clean`) **só no
+   worktree do Glyph**, para a próxima abordagem começar limpa.
+4. **"Noite" = 22h–7h ou usuário ausente há mais de 10 min** (ou nenhum corpo conectado).
+5. **Diário das últimas 24 h** no horário do objetivo de resumo (sem `sucesso`).
+6. **O painel da casa é só leitura.** Editar é pelo `glyphd` ou nos arquivos,
+   que são legíveis de propósito.
+7. **O desfazer de um ramo** apaga o worktree e o ramo (`git branch -D`, só do
+   ramo `glyph/*`), e rebaixa a escada como qualquer desfazer.
+
+---
+
 # Relatório — M3 Autonomia v1
 
 Branch: `feat/m3-autonomia` (empilhado sobre `feat/m2-cerebro`).
