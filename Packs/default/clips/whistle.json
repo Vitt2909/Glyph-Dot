@@ -1,0 +1,12 @@
+{
+  "id": "whistle",
+  "fps": 12,
+  "loop": false,
+  "keys": [
+    {"t": 0, "ease": "out", "pose": {}},
+    {"t": 0.2, "ease": "inOut", "pose": {"armR.upper": -10, "armR.lower": -150, "head": 8}},
+    {"t": 0.7, "ease": "inOut", "pose": {"armR.upper": -12, "armR.lower": -148, "head": 12, "stretch": 1.05}},
+    {"t": 0.9, "pose": {}}
+  ],
+  "dot": {"mode": "split"}
+}

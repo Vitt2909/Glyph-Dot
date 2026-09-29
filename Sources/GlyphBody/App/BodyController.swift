@@ -216,8 +216,8 @@ public final class BodyController: NSObject {
     }
 
     private func draw() {
-        let d = engine.drawing
-        for o in overlays { o.show(d) }
+        let all = engine.drawings
+        for o in overlays { o.show(all) }
     }
 }
 #endif

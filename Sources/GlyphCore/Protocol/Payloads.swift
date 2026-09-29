@@ -225,11 +225,14 @@ public struct BodyEmote: Sendable, Equatable, Codable {
     public var dot: DotMode?
     /// Sticker do pack para segurar durante a emoção (ex.: "folha" ao salvar memória).
     public var sticker: String?
+    /// Especialista (multi-Glyph) em vez do Glyph principal.
+    public var agentId: String?
 
-    public init(clip: String, dot: DotMode? = nil, sticker: String? = nil) {
+    public init(clip: String, dot: DotMode? = nil, sticker: String? = nil, agentId: String? = nil) {
         self.clip = clip
         self.dot = dot
         self.sticker = sticker
+        self.agentId = agentId
     }
 }
 
@@ -240,10 +243,14 @@ public struct BubbleSay: Sendable, Equatable, Codable {
 
     public var text: String
     public var durationSec: Double
+    /// Quem fala: um especialista (id do `agent.spawn`, ou só o papel, ex.
+    /// "auditor"). `nil` = o Glyph principal.
+    public var agentId: String?
 
-    public init(text: String, durationSec: Double = BubbleSay.defaultDuration) {
+    public init(text: String, durationSec: Double = BubbleSay.defaultDuration, agentId: String? = nil) {
         self.text = text
         self.durationSec = durationSec
+        self.agentId = agentId
     }
 
     /// Texto que o corpo realmente mostra: cortado em `maxLength` com reticências.

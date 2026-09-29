@@ -273,3 +273,38 @@ final class DiaryEngineTests: XCTestCase {
         XCTAssertNil(e.drawing?.held, "entregou o diário")
     }
 }
+
+final class CompanionTests: XCTestCase {
+    func testSpecialistsAppearWalkAlongTalkAndLeave() {
+        let (stickers, _) = Sticker.load(pack: Packs.defaultPack)
+        var e = GlyphEngine(world: WorldSnapshot(screens: [TestWorlds.screen]), clips: Packs.library,
+                            stickers: stickers, start: Vec2(700, 90))
+        for _ in 0..<60 { e.advance(by: 1.0 / 60) }
+        e.receive(.agentSpawn(AgentSpawn(agentId: "builder-1", role: .builder)))
+        e.receive(.agentSpawn(AgentSpawn(agentId: "auditor-2", role: .auditor)))
+        for _ in 0..<120 { e.advance(by: 1.0 / 60) }
+        let d = e.drawings
+        XCTAssertEqual(d.count, 3)
+        XCTAssertEqual(Set(d.dropFirst().compactMap { $0.held?.id }), ["chave", "escudo"])
+        // Andam para os lados do principal, no chão.
+        for c in e.companions {
+            XCTAssertEqual(c.body.support, .ground(.floor(screen: 1)))
+            XCTAssertEqual(c.body.position.x, e.body.position.x + GlyphEngine.slotOffsets[c.slot], accuracy: 4)
+        }
+        e.receive(.bubbleSay(BubbleSay(text: "não.", agentId: "auditor")))
+        XCTAssertEqual(e.drawings.last?.bubble, "não.")
+        XCTAssertNil(e.drawings.first?.bubble, "a bolha é do auditor, não do principal")
+        XCTAssertEqual(e.desiredFPS, 60)
+        e.receive(.agentDespawn(AgentDespawn(agentId: "builder-1")))
+        e.receive(.agentDespawn(AgentDespawn(agentId: "auditor-2")))
+        for _ in 0..<180 { e.advance(by: 1.0 / 60) }
+        XCTAssertTrue(e.companions.isEmpty, "voltaram para o Dot")
+        XCTAssertEqual(e.drawings.count, 1)
+    }
+
+    func testAtMostThreeCompanions() {
+        var e = GlyphEngine(world: WorldSnapshot(screens: [TestWorlds.screen]), clips: Packs.library, start: Vec2(700, 90))
+        for i in 0..<5 { e.receive(.agentSpawn(AgentSpawn(agentId: "b\(i)", role: .builder))) }
+        XCTAssertEqual(e.companions.count, 3)
+    }
+}

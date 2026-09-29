@@ -15,7 +15,7 @@ public final class GlyphView: NSView {
     private let ink = CAShapeLayer()       // traço preto
     private let dotPaper = CAShapeLayer()  // borda branca do Dot
     private let dotInk = CAShapeLayer()    // Dot
-    private let bubble = BubbleLayer()
+    private var bubbles: [BubbleLayer] = []
 
     public var style = StickerStyle.default {
         didSet { applyStyle() }
@@ -37,7 +37,6 @@ public final class GlyphView: NSView {
         }
         sticker.actions = ["opacity": NSNull()]
         layer?.addSublayer(sticker)
-        layer?.addSublayer(bubble.layer)
         applyStyle()
     }
 
@@ -75,44 +74,56 @@ public final class GlyphView: NSView {
 
     /// Mostra um quadro. `nil` esconde o Glyph (por exemplo, fora desta tela).
     public func show(_ drawing: GlyphDrawing?) {
+        show(drawing.map { [$0] } ?? [])
+    }
+
+    /// Mostra vários Glyphs (o principal e os especialistas) nas mesmas camadas.
+    public func show(_ drawings: [GlyphDrawing]) {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         defer { CATransaction.commit() }
 
-        guard let drawing else {
+        guard !drawings.isEmpty else {
             sticker.isHidden = true
-            bubble.isHidden = true
+            bubbles.forEach { $0.isHidden = true }
             return
         }
         sticker.isHidden = false
-        sticker.opacity = Float(drawing.opacity)
+        sticker.opacity = Float(drawings[0].opacity)
 
-        let shapes = StickerShapes.build(drawing, style: style)
-        let strokePath = CGMutablePath()
-        for s in shapes.strokes { addPolyline(s, to: strokePath) }
-        let fillPath = CGMutablePath()
-        for f in shapes.fills { addPolyline(f, to: fillPath, close: true) }
-
+        let strokePath = CGMutablePath(), fillPath = CGMutablePath()
         let dots = CGMutablePath(), dotBorders = CGMutablePath()
-        for d in shapes.discs where d.opacity > 0.01 {
-            let c = local(d.center)
-            dots.addEllipse(in: CGRect(x: c.x - d.radius, y: c.y - d.radius, width: 2 * d.radius, height: 2 * d.radius))
-            let r = d.radius + style.outlineWidth * 0.6
-            dotBorders.addEllipse(in: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r))
+        for d in drawings where d.opacity > 0.02 {
+            let shapes = StickerShapes.build(d, style: style)
+            for s in shapes.strokes { addPolyline(s, to: strokePath) }
+            for f in shapes.fills { addPolyline(f, to: fillPath, close: true) }
+            for disc in shapes.discs where disc.opacity > 0.01 {
+                let c = local(disc.center)
+                dots.addEllipse(in: CGRect(x: c.x - disc.radius, y: c.y - disc.radius, width: 2 * disc.radius, height: 2 * disc.radius))
+                let r = disc.radius + style.outlineWidth * 0.6
+                dotBorders.addEllipse(in: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r))
+            }
         }
         paperFill.path = fillPath
         paper.path = strokePath
         ink.path = strokePath
         dotPaper.path = dotBorders
         dotInk.path = dots
-        dotInk.opacity = Float(drawing.dot.opacity)
+        dotInk.opacity = Float(drawings[0].dot.opacity)
 
-        if let text = drawing.bubble {
-            bubble.isHidden = false
-            let head = local(drawing.skeleton.headCenter + drawing.position)
-            bubble.show(text: text, anchor: CGPoint(x: head.x, y: head.y + drawing.skeleton.headRadius + 10), in: bounds)
-        } else {
-            bubble.isHidden = true
+        // Uma bolha por Glyph que estiver falando.
+        let speaking = drawings.filter { $0.bubble != nil }
+        while bubbles.count < speaking.count {
+            let b = BubbleLayer()
+            layer?.addSublayer(b.layer)
+            bubbles.append(b)
+        }
+        for (i, b) in bubbles.enumerated() {
+            guard i < speaking.count, let text = speaking[i].bubble else { b.isHidden = true; continue }
+            let d = speaking[i]
+            b.isHidden = false
+            let head = local(d.skeleton.headCenter + d.position)
+            b.show(text: text, anchor: CGPoint(x: head.x, y: head.y + d.skeleton.headRadius + 10), in: bounds)
         }
     }
 

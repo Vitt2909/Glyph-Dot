@@ -102,6 +102,33 @@ public struct GlyphEngine: Sendable {
 
     private var events: [EngineEvent] = []
 
+    /// Um especialista visível (multi-Glyph).
+    public struct Companion: Sendable, Equatable {
+        public var id: String
+        public var role: SpecialistRole
+        public var body: BodyState
+        public var slot: Int
+        public var born: Double
+        public var leavingSince: Double?
+        public var clip: String = "idle"
+        public var clipStart: Double = 0
+        public var bubble: String?
+        public var bubbleUntil: Double = 0
+    }
+
+    public static let maxCompanions = 3
+    public private(set) var companions: [Companion] = []
+    static let slotOffsets: [Double] = [-42, 42, -84]
+
+    static func sticker(for role: SpecialistRole) -> String {
+        switch role {
+        case .builder: return "chave"
+        case .researcher: return "lupa"
+        case .designer: return "pincel"
+        case .auditor: return "escudo"
+        }
+    }
+
     public init(world snapshot: WorldSnapshot, clips: ClipLibrary, stickers: [String: Sticker] = [:],
                 config: Config = Config(), start: Vec2? = nil) {
         self.config = config
@@ -219,6 +246,22 @@ public struct GlyphEngine: Sendable {
     /// Mensagem já validada vinda do cérebro.
     public mutating func receive(_ message: Message) {
         switch message {
+        case let .bubbleSay(b) where b.agentId != nil:
+            if let i = companionIndex(b.agentId!) {
+                companions[i].bubble = b.displayText
+                companions[i].bubbleUntil = time + b.durationSec
+            }
+        case let .bodyEmote(e) where e.agentId != nil:
+            if let i = companionIndex(e.agentId!), clips[e.clip] != nil {
+                companions[i].clip = e.clip
+                companions[i].clipStart = time
+            }
+        case let .agentSpawn(a):
+            spawnCompanion(a)
+        case let .agentDespawn(a):
+            if let i = companions.firstIndex(where: { $0.id == a.agentId }), companions[i].leavingSince == nil {
+                companions[i].leavingSince = time
+            }
         case let .bubbleSay(b):
             say(b.displayText, duration: b.durationSec)
         case let .bodyEmote(e):
@@ -250,7 +293,7 @@ public struct GlyphEngine: Sendable {
             pendingDiary = d.path
             if let s = stickers["diario"] { held = (s, time + 12 * 3600) }
             say("diário pronto.", duration: 6)
-        case .agentSpawn, .agentDespawn, .hello,
+        case .hello,
              .worldUpdate, .inputSummon, .inputBrake, .approvalResponse:
             break
         }
@@ -269,6 +312,79 @@ public struct GlyphEngine: Sendable {
 
     private mutating func say(_ text: String, duration: Double = BubbleSay.defaultDuration) {
         bubble = (BubbleSay(text: text).displayText, time + duration)
+    }
+
+    // MARK: - Multi-Glyph
+
+    /// Por id exato ou pelo papel ("auditor" acha "auditor-3").
+    func companionIndex(_ key: String) -> Int? {
+        companions.firstIndex { $0.id == key } ?? companions.firstIndex { $0.role.rawValue == key || $0.id.hasPrefix(key + "-") }
+    }
+
+    private mutating func spawnCompanion(_ a: AgentSpawn) {
+        guard companions.count < Self.maxCompanions, !companions.contains(where: { $0.id == a.agentId }) else { return }
+        let used = Set(companions.map(\.slot))
+        let slot = (0..<Self.maxCompanions).first { !used.contains($0) } ?? 0
+        // Um ponto sai do Dot e vira outro Glyph: nasce na cabeça e pula para o lado.
+        var b = BodyState(position: body.position + Vec2(0, metrics.height))
+        b.velocity = Vec2(Self.slotOffsets[slot] > 0 ? 90 : -90, 260)
+        b.facing = Self.slotOffsets[slot] > 0 ? 1 : -1
+        companions.append(Companion(id: a.agentId, role: a.role, body: b, slot: slot, born: time, clipStart: time))
+        if oneShot == nil, clips["whistle"] != nil { oneShot = ("whistle", time) }
+    }
+
+    private mutating func stepCompanions() {
+        guard !companions.isEmpty else { return }
+        var keep: [Companion] = []
+        for var c in companions {
+            var control = Control()
+            if case let .ground(kind) = c.body.support {
+                var targetX = body.position.x + (c.leavingSince == nil ? Self.slotOffsets[c.slot] : 0)
+                // Não sai andando da plataforma onde está.
+                if let seg = world.segment(kind, x: c.body.position.x, nearY: c.body.position.y) {
+                    targetX = seg.clampX(targetX, inset: metrics.width / 2)
+                }
+                let dx = targetX - c.body.position.x
+                if abs(dx) > 3 { control.moveX = dx > 0 ? 1 : -1 }
+                control.run = abs(dx) > 120
+            }
+            _ = sim.step(&c.body, control, in: world)
+            if c.bubble != nil, time > c.bubbleUntil { c.bubble = nil }
+            if let leaving = c.leavingSince {
+                let merged = abs(c.body.position.x - body.position.x) < 8 && c.body.support.isGrounded
+                if merged || time - leaving > 2 { continue } // volta para o Dot
+            }
+            keep.append(c)
+        }
+        companions = keep
+    }
+
+    /// Todos os quadros: o Glyph principal e os especialistas.
+    public var drawings: [GlyphDrawing] {
+        mutating get {
+            var out: [GlyphDrawing] = []
+            if let d = makeDrawing() { out.append(d) }
+            for c in companions { out.append(companionDrawing(c)) }
+            return out
+        }
+    }
+
+    private func companionDrawing(_ c: Companion) -> GlyphDrawing {
+        let moving = abs(c.body.velocity.x) > 5
+        let clipID: String
+        switch c.body.support {
+        case .air: clipID = c.body.velocity.y > 0 ? "jump" : "fall"
+        default: clipID = moving ? "walk" : c.clip
+        }
+        let start = moving ? 0 : c.clipStart
+        let pose = clips[clipID]?.sample(at: time - start) ?? .rest
+        let facing: Double = moving ? (c.body.velocity.x > 0 ? 1 : -1) : (body.position.x >= c.body.position.x ? 1 : -1)
+        let sk = ForwardKinematics.solve(pose, metrics: metrics, facing: facing)
+        let dot = dotAnimator.draw(mode: .steady, time: time + Double(c.slot), since: time - c.born, head: sk.headCenter)
+        var opacity = min(1, (time - c.born) / 0.3)
+        if let l = c.leavingSince { opacity = max(0, 1 - (time - l) / 2) }
+        return GlyphDrawing(position: c.body.position, skeleton: sk, dot: dot, boilFrame: Int(time * 24) + 7 * (c.slot + 1),
+                            bubble: c.bubble, opacity: opacity, held: stickers[Self.sticker(for: c.role)])
     }
 
     // MARK: - Tempo
@@ -334,6 +450,7 @@ public struct GlyphEngine: Sendable {
             }
         }
 
+        stepCompanions()
         let evs = sim.step(&body, control, in: world)
         for e in evs {
             switch e {
@@ -608,7 +725,8 @@ public struct GlyphEngine: Sendable {
     public var desiredFPS: Double {
         if homeState == .inside { return 0 }
         if sleepStart != nil { return 6 }
-        if locomotion != .stand || oneShot != nil || pendingJump != nil || homeState != .outside || abs(spring.value - 1) > 0.01 {
+        if locomotion != .stand || oneShot != nil || pendingJump != nil || homeState != .outside || abs(spring.value - 1) > 0.01
+            || !companions.isEmpty {
             return 60
         }
         return config.style.poseFPS
