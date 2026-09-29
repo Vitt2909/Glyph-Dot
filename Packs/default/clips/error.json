@@ -1,0 +1,12 @@
+{
+  "id": "error",
+  "fps": 12,
+  "loop": false,
+  "keys": [
+    {"t": 0, "ease": "inOut", "pose": {"head": -14}},
+    {"t": 0.5, "ease": "inOut", "pose": {"head": 10}},
+    {"t": 1.0, "ease": "inOut", "pose": {"head": -14, "armR.upper": -160, "armR.lower": -70}},
+    {"t": 1.5, "pose": {"head": 0}}
+  ],
+  "dot": {"mode": "shrink"}
+}

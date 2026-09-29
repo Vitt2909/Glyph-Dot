@@ -1,0 +1,9 @@
+{
+  "id": "crouch",
+  "fps": 12,
+  "loop": false,
+  "keys": [
+    {"t": 0, "ease": "out", "pose": {}},
+    {"t": 0.1, "pose": {"root.dy": -4, "stretch": 0.85, "torso": -10, "legL.upper": 35, "legL.lower": -65, "legR.upper": 30, "legR.lower": -60, "armL.upper": -35, "armR.upper": -30}}
+  ]
+}

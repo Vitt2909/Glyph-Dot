@@ -1,0 +1,10 @@
+{
+  "id": "carried",
+  "fps": 12,
+  "loop": true,
+  "keys": [
+    {"t": 0, "ease": "inOut", "pose": {"armL.upper": 20, "armL.lower": -110, "armR.upper": -20, "armR.lower": 110, "legL.upper": 6, "legR.upper": -6, "head": -6}},
+    {"t": 0.5, "ease": "inOut", "pose": {"armL.upper": 20, "armL.lower": -110, "armR.upper": -20, "armR.lower": 110, "legL.upper": -2, "legR.upper": -12, "head": -6}}
+  ],
+  "dot": {"mode": "steady"}
+}

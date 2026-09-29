@@ -46,8 +46,23 @@ open build/Glyph.app                # o Glyph aparece em cima do Dock
 GLYPH_MOCK=1 build/Glyph.app/Contents/MacOS/Glyph   # com o cérebro falso
 ```
 
-Clique no Glyph para ele responder; clique com o botão direito para sair.
-O app não pede nenhuma permissão.
+O Glyph cai na tela, anda por cima das janelas, pula, escala, se pendura
+na barra de menu e mora na notch (ou numa pílula no topo, sem notch).
+
+| Você faz | Ele faz |
+|---|---|
+| Aproxima o cursor devagar | Olha |
+| Aproxima rápido | Recua um passo |
+| Para o cursor em cima dele por 1 s | Acena |
+| Clica | Bolha curta com o estado atual |
+| Clica e arrasta | É carregado de braços cruzados; ao soltar, cai, levanta e olha para você |
+| Duplo clique | Abre a casa *(o painel chega no M2)* |
+| Fecha a janela onde ele está | Cai e pousa na de baixo, ou no Dock |
+| Arrasta a janela | Ele vai junto |
+| Maximiza | Ele corre para não ser empurrado |
+| Entra em tela cheia | Ele vai para casa |
+
+Botão direito no Glyph → Sair. O app não pede nenhuma permissão.
 
 ## Instalação
 
@@ -59,7 +74,7 @@ releases, o macOS vai avisar que o desenvolvedor não foi verificado.
 ## Marcos
 
 - [x] **M0 — Fundação:** repositório, licenças, CI, protocolo v0, modo mock, Glyph parado.
-- [ ] **M1 — A criatura muda:** overlay, mundo, física, pathfinding, estilo sticker completo. Sem IA.
+- [ ] **M1 — A criatura muda:** overlay, mundo, física, pathfinding, estilo sticker completo. Sem IA. *(código pronto e testado no Core; falta validar no macOS)*
 - [ ] **M2 — Cérebro reativo:** `glyphd` como LaunchAgent, um cérebro, bolhas, `shell` e `web.search`.
 - [ ] **M3 — Autonomia v1:** sensores, intenções, pontuação, escada de confiança, aprovações, freio.
 - [ ] **M4 — Objetivos e turno noturno:** `goals.yaml`, orçamentos, worktrees, diário da manhã.

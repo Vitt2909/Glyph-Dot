@@ -1,0 +1,11 @@
+{
+  "id": "idle",
+  "fps": 12,
+  "loop": true,
+  "keys": [
+    {"t": 0, "ease": "inOut", "pose": {}},
+    {"t": 1.5, "ease": "inOut", "pose": {"armL.upper": 24, "armR.upper": -17, "head": 2}},
+    {"t": 3.0, "ease": "inOut", "pose": {"armL.upper": 18, "armR.upper": -23, "head": -2}}
+  ],
+  "dot": {"mode": "steady"}
+}

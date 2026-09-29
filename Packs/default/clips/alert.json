@@ -1,0 +1,10 @@
+{
+  "id": "alert",
+  "fps": 12,
+  "loop": true,
+  "keys": [
+    {"t": 0, "pose": {"legL.upper": 16, "legR.upper": -16, "armL.upper": 40, "armL.lower": 30, "armR.upper": -40, "armR.lower": -30, "root.dy": -1}},
+    {"t": 0.5, "pose": {"legL.upper": 16, "legR.upper": -16, "armL.upper": 44, "armL.lower": 30, "armR.upper": -44, "armR.lower": -30, "root.dy": -1.5}}
+  ],
+  "dot": {"mode": "alert"}
+}

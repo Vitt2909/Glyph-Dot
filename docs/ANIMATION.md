@@ -10,8 +10,9 @@ ganhou vida**, colado na tela como um adesivo.
 2. **Adesivo recortado:** traço preto de 2,5 pt com pontas arredondadas por
    cima de um contorno branco de 3 pt por lado (traço branco de 8,5 pt), mais
    uma sombra curta e suave. A cabeça é preenchida de branco (o "papel").
-3. **Line boil:** a cada 3 quadros desenhados, cada ponto do traço recebe um
-   deslocamento de ±0,6 pt com semente fixa. Os traços são subdivididos a
+3. **Line boil:** a cada 3 quadros (contados a 24 Hz, ou seja ~8 vezes por
+   segundo), cada ponto do traço recebe um deslocamento de ±0,6 pt com semente
+   fixa. Os traços são subdivididos a
    cada ~4 pt antes, para o boil não ficar só nas juntas.
 4. **Animação "em dois":** a física roda a 60 Hz; a pose é amostrada a 12 fps.
 5. **Princípios:** antecipação antes do pulo, squash & stretch no pouso,
@@ -103,5 +104,5 @@ O Dot muda de **comportamento**, não de cor.
 ## Como contribuir com um clipe
 
 1. Crie `Packs/default/clips/<id>.json` seguindo o formato.
-2. Rode `swift test`: o teste `PackTests` valida todos os clipes do pack (a partir do M1).
+2. Rode `swift test`: o teste `PackTests` valida todos os clipes do pack.
 3. Grave um GIF curto no PR. Arte em `Packs/` é licenciada em CC BY 4.0.

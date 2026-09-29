@@ -1,0 +1,12 @@
+{
+  "id": "yawn",
+  "fps": 12,
+  "loop": false,
+  "keys": [
+    {"t": 0, "ease": "inOut", "pose": {}},
+    {"t": 0.6, "ease": "inOut", "pose": {"armL.upper": 165, "armL.lower": 20, "armR.upper": -165, "armR.lower": -20, "torso": 6, "head": 12, "stretch": 1.08}},
+    {"t": 1.4, "ease": "inOut", "pose": {}},
+    {"t": 1.6, "pose": {}}
+  ],
+  "dot": {"mode": "fade"}
+}

@@ -2,101 +2,82 @@
 import AppKit
 import GlyphCore
 
-/// M0: abre um overlay por tela e mostra o Glyph parado sobre o Dock.
-/// Com `GLYPH_MOCK=1`, um `MockBrain` manda bolhas e emoções falsas.
+/// O app: um `BodyController` e, com `GLYPH_MOCK=1`, um cérebro falso.
+///
+/// Sem `glyphd` (M2) e sem mock, o Glyph é a criatura "muda" do M1: vive,
+/// anda, reage ao cursor, mas não fala com cérebro nenhum.
 @MainActor
 public final class GlyphAppDelegate: NSObject, NSApplicationDelegate {
-    private var overlays: [OverlayController] = []
-    private var timer: Timer?
+    private var body: BodyController?
     private var mock: MockBrain?
+    private var mockTimer: Timer?
     private let started = Date()
-    private var bubble: (text: String, until: Date)?
-    private var dotMode: DotMode = .steady
-    private var frame = 0
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
+        let (clips, errors) = ClipLibrary.load(pack: PackLocator.find())
+        for e in errors { FileHandle.standardError.write(Data("pack: \(e)\n".utf8)) }
+        if clips.clips.isEmpty {
+            FileHandle.standardError.write(Data("pack: nenhum clipe encontrado; o Glyph vai ficar parado\n".utf8))
+        }
+
+        let body = BodyController(clips: clips)
+        self.body = body
+
         if ProcessInfo.processInfo.environment["GLYPH_MOCK"] == "1" {
             mock = MockBrain()
+            body.onSend = { [weak self] m in self?.sendToMock(m) }
+            mockTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+                MainActor.assumeIsolated { self?.pollMock() }
+            }
         }
-        rebuildOverlays()
-        NotificationCenter.default.addObserver(
-            forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
-        ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.rebuildOverlays() }
-        }
-        // 12 fps: a pose é amostrada "em dois" e o traço ferve a cada 3 quadros.
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0 / StickerStyle.default.poseFPS, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.tick() }
-        }
-        tick()
+        body.start()
     }
 
     public func applicationWillTerminate(_ notification: Notification) {
-        timer?.invalidate()
-        overlays.forEach { $0.close() }
+        mockTimer?.invalidate()
+        body?.stop()
     }
 
-    private func rebuildOverlays() {
-        overlays.forEach { $0.close() }
-        overlays = NSScreen.screens.map { screen in
-            let o = OverlayController(screen: screen)
-            o.view.onMouseDown = { [weak self] event in self?.mouseDown(event) }
-            return o
-        }
+    private func pollMock() {
+        guard var brain = mock else { return }
+        let envs = brain.poll(elapsed: Date().timeIntervalSince(started))
+        mock = brain
+        envs.forEach(deliver)
     }
 
-    /// Chão do M0: topo do Dock na tela principal (ou a borda da tela se o Dock estiver oculto).
-    private var standingPoint: Vec2 {
-        guard let screen = NSScreen.main ?? NSScreen.screens.first else { return Vec2(200, 100) }
-        let floor = screen.visibleFrame.minY
-        return Vec2(screen.frame.midX, floor)
+    private func sendToMock(_ m: Message) {
+        guard var brain = mock else { return }
+        let replies = brain.respond(to: Envelope(id: UUID().uuidString, message: m))
+        mock = brain
+        replies.forEach(deliver)
     }
 
-    private func tick() {
-        frame += 1
-        if var brain = mock {
-            for env in brain.poll(elapsed: Date().timeIntervalSince(started)) { handle(env) }
-            mock = brain
-        }
-        if let b = bubble, b.until < Date() { bubble = nil }
-
-        var drawing = GlyphDrawing.standing(at: standingPoint)
-        drawing.boilFrame = frame
-        drawing.bubble = bubble?.text
-        drawing.dot.alert = dotMode == .alert
-        drawing.dot.sleeping = dotMode == .fade
-        if dotMode == .fade { drawing.dot.opacity = 0.4 }
-        for o in overlays { o.show(drawing) }
-    }
-
-    private func handle(_ env: Envelope) {
+    private func deliver(_ env: Envelope) {
+        // O corpo valida tudo que chega, inclusive do mock.
         guard (try? ProtocolValidator.validate(env, from: .brain)) != nil else { return }
-        switch env.message {
-        case let .bubbleSay(b):
-            bubble = (b.displayText, Date().addingTimeInterval(b.durationSec))
-        case let .bodyEmote(e):
-            dotMode = e.dot ?? .steady
-        case let .approvalRequest(r):
-            bubble = (BubbleSay(text: r.why).displayText, Date().addingTimeInterval(4))
-        default:
-            break
-        }
+        body?.receive(env.message)
     }
+}
 
-    private func mouseDown(_ event: NSEvent) {
-        if event.type == .rightMouseDown || event.modifierFlags.contains(.control) {
-            let menu = NSMenu()
-            menu.addItem(withTitle: "Sair do Glyph", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-            NSMenu.popUpContextMenu(menu, with: event, for: overlays.first?.view ?? NSView())
-            return
+/// Onde está o pack de animações.
+enum PackLocator {
+    static func find() -> URL {
+        let fm = FileManager.default
+        if let custom = ProcessInfo.processInfo.environment["GLYPH_PACK"], !custom.isEmpty {
+            return URL(fileURLWithPath: custom, isDirectory: true)
         }
-        bubble = (mock == nil ? "oi." : "(mock) oi.", Date().addingTimeInterval(BubbleSay.defaultDuration))
-        if var brain = mock {
-            for env in brain.respond(to: Envelope(id: "click", message: .inputSummon(InputSummon(source: .click)))) {
-                handle(env)
-            }
-            mock = brain
+        if let res = Bundle.main.resourceURL?.appendingPathComponent("Pack", isDirectory: true),
+           fm.fileExists(atPath: res.appendingPathComponent("clips").path) {
+            return res
         }
+        // `swift run`: sobe a partir do executável até achar Packs/default.
+        var dir = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath().deletingLastPathComponent()
+        for _ in 0..<8 {
+            let candidate = dir.appendingPathComponent("Packs/default", isDirectory: true)
+            if fm.fileExists(atPath: candidate.appendingPathComponent("clips").path) { return candidate }
+            dir.deleteLastPathComponent()
+        }
+        return URL(fileURLWithPath: fm.currentDirectoryPath).appendingPathComponent("Packs/default", isDirectory: true)
     }
 }
 #endif
