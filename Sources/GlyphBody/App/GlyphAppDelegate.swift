@@ -19,9 +19,9 @@ public final class GlyphAppDelegate: NSObject, NSApplicationDelegate {
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
         let pack = PackLocator.find()
-        let (clips, errors) = ClipLibrary.load(pack: pack)
-        let (stickers, stickerErrors) = Sticker.load(pack: pack)
-        for e in errors + stickerErrors { FileHandle.standardError.write(Data("pack: \(e)\n".utf8)) }
+        // Packs da comunidade moram na casa; entram por cima do padrão.
+        let (clips, stickers, _, errors) = PackLoader.load(default: pack, community: PackLoader.communityPacks(in: PackLocator.communityDir))
+        for e in errors { FileHandle.standardError.write(Data("pack: \(e)\n".utf8)) }
         if clips.clips.isEmpty {
             FileHandle.standardError.write(Data("pack: nenhum clipe encontrado; o Glyph vai ficar parado\n".utf8))
         }
@@ -124,6 +124,16 @@ public final class GlyphAppDelegate: NSObject, NSApplicationDelegate {
 
 /// Onde está o pack de animações.
 enum PackLocator {
+    static var communityDir: URL {
+        let base: URL
+        if let custom = ProcessInfo.processInfo.environment["GLYPH_HOME"], !custom.isEmpty {
+            base = URL(fileURLWithPath: custom, isDirectory: true)
+        } else {
+            base = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Glyph", isDirectory: true)
+        }
+        return base.appendingPathComponent("casa/packs", isDirectory: true)
+    }
+
     static func find() -> URL {
         let fm = FileManager.default
         if let custom = ProcessInfo.processInfo.environment["GLYPH_PACK"], !custom.isEmpty {

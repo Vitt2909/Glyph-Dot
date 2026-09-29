@@ -1,0 +1,9 @@
+{
+  "id": "festa",
+  "nome": "Festa",
+  "versao": "0.1.0",
+  "autor": "Exemplo do projeto Glyph",
+  "licenca": "CC0-1.0",
+  "descricao": "Um pack de exemplo: uma dança e um balão.",
+  "formato": 1
+}

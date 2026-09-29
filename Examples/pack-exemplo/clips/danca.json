@@ -1,0 +1,13 @@
+{
+  "id": "danca",
+  "fps": 12,
+  "loop": true,
+  "keys": [
+    {"t": 0, "ease": "inOut", "pose": {"armL.upper": 155, "armL.lower": 20, "armR.upper": -40, "armR.lower": -30, "legL.upper": 18, "legL.lower": -20, "legR.upper": -6, "root.dy": 0}},
+    {"t": 0.25, "ease": "inOut", "pose": {"armL.upper": 100, "armL.lower": 30, "armR.upper": -100, "armR.lower": -30, "legL.upper": 22, "legL.lower": -40, "legR.upper": -22, "legR.lower": -40, "root.dy": -3}},
+    {"t": 0.5, "ease": "inOut", "pose": {"armL.upper": 40, "armL.lower": 30, "armR.upper": -155, "armR.lower": -20, "legL.upper": 6, "legR.upper": -18, "legR.lower": -20, "root.dy": 0}},
+    {"t": 0.75, "ease": "inOut", "pose": {"armL.upper": 100, "armL.lower": 30, "armR.upper": -100, "armR.lower": -30, "legL.upper": 22, "legL.lower": -40, "legR.upper": -22, "legR.lower": -40, "root.dy": -3}},
+    {"t": 1.0, "ease": "inOut", "pose": {"armL.upper": 155, "armL.lower": 20, "armR.upper": -40, "armR.lower": -30, "legL.upper": 18, "legL.lower": -20, "legR.upper": -6, "root.dy": 0}}
+  ],
+  "dot": {"mode": "pulse", "speed": 2}
+}

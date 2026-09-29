@@ -3,7 +3,7 @@ import GlyphCore
 
 // glyph-art — gera a arte do projeto a partir do próprio motor.
 //
-//   swift run glyph-art                # escreve em docs/art e Packs/default/stickers
+//   swift run glyph-art                # escreve em docs/art, Packs/default/stickers e Examples/pack-exemplo/previa
 //   swift run glyph-art <pasta-docs>   # outra pasta de saída
 //
 // Tudo é determinístico: mesma versão do código → mesmos arquivos.
@@ -47,8 +47,8 @@ func frame(clip: Clip, t: Double, at p: Vec2, facing: Double = 1, dot: DotMode? 
 
 // MARK: - Prévia de cada clipe (animada)
 
-for id in clips.clips.keys.sorted() {
-    let clip = clips[id]!
+func clipPreview(_ clip: Clip) -> String {
+    let id = clip.id
     let c = SVGRenderer.Canvas(width: 120, height: 96, scale: 1)
     let length = clip.loops ? clip.duration : clip.duration + 0.6
     let n = max(Int((max(length, 0.5) * 12).rounded(.up)), 1)
@@ -73,9 +73,13 @@ for id in clips.clips.keys.sorted() {
     // Mesmo desenho, 1,5× maior: reescala o canvas e o cenário juntos.
     let zc = SVGRenderer.Canvas(width: c.width, height: c.height, scale: 1.5)
     let zs = ##"<g transform="scale(1.5)">\##(scenery)</g>"##
-    try write(SVGRenderer.animate(frames, fps: 12, zc, background: paper, scenery: zs, title: "Glyph — \(id)"),
-              out.appendingPathComponent("clips/\(id).svg"))
+    return SVGRenderer.animate(frames, fps: 12, zc, background: paper, scenery: zs, title: "Glyph — \(id)")
 }
+
+for id in clips.clips.keys.sorted() {
+    try write(clipPreview(clips[id]!), out.appendingPathComponent("clips/\(id).svg"))
+}
+
 
 // MARK: - Galeria de estados (estática)
 
@@ -301,4 +305,23 @@ do {
     var svg = SVGRenderer.animate(frames, fps: fps, c, background: paper, scenery: scenery, title: "Glyph chamando o time: Builder e Auditor")
     svg = svg.replacingOccurrences(of: "</svg>", with: overlay + "</svg>")
     try write(svg, out.appendingPathComponent("equipe.svg"))
+}
+
+// MARK: - Pack de exemplo da comunidade
+
+do {
+    let dir = root.appendingPathComponent("Examples/pack-exemplo", isDirectory: true)
+    let p = PackLoader.loadPack(dir, requireManifest: true)
+    for e in p.errors { FileHandle.standardError.write(Data("aviso: \(e)\n".utf8)) }
+    let previa = dir.appendingPathComponent("previa", isDirectory: true)
+    try fm.createDirectory(at: previa, withIntermediateDirectories: true)
+    for id in p.clips.clips.keys.sorted() {
+        try write(clipPreview(p.clips[id]!), previa.appendingPathComponent("\(id).svg"))
+    }
+    for id in p.stickers.keys.sorted() {
+        let one = SVGRenderer.Canvas(width: 48, height: 48, scale: 1)
+        try write(SVGRenderer.document(one, body: SVGRenderer.group(p.stickers[id]!.shapes(at: Vec2(24, 24), scale: 1.4), one),
+                                       background: paper, title: "sticker \(id)"),
+                  previa.appendingPathComponent("\(id).svg"))
+    }
 }
