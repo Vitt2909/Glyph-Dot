@@ -23,3 +23,9 @@ jobs:
         run: swift test --parallel
       - name: glyphd mock valida o próprio protocolo
         run: swift run glyphd mock --fast | swift run glyphd validate
+      - name: A arte está em dia com o código
+        run: |
+          swift run glyph-art
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git diff --exit-code -- docs/art Packs/default/stickers || {
+            echo "::error::A arte mudou. Rode Scripts/gerar-arte.sh e faça commit."; exit 1; }

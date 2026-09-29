@@ -10,6 +10,7 @@ var products: [Product] = [
     .library(name: "GlyphCore", targets: ["GlyphCore"]),
     .library(name: "GlyphDaemon", targets: ["GlyphDaemon"]),
     .executable(name: "glyphd", targets: ["glyphd"]),
+    .executable(name: "glyph-art", targets: ["glyph-art"]),
 ]
 
 var targets: [Target] = [
@@ -26,6 +27,11 @@ var targets: [Target] = [
         name: "glyphd",
         dependencies: ["GlyphCore", "GlyphDaemon"],
         path: "Sources/glyphd"
+    ),
+    .executableTarget(
+        name: "glyph-art",
+        dependencies: ["GlyphCore"],
+        path: "Sources/glyph-art"
     ),
     .testTarget(
         name: "GlyphCoreTests",

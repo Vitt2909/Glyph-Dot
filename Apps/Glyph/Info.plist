@@ -6,6 +6,8 @@
 	<string>pt-BR</string>
 	<key>CFBundleExecutable</key>
 	<string>Glyph</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>dev.glyph.Glyph</string>
 	<key>CFBundleInfoDictionaryVersion</key>

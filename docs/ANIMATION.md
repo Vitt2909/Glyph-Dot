@@ -101,8 +101,29 @@ O Dot muda de **comportamento**, não de cor.
 | Multi-Glyph | `split` | Um ponto se separa e vira outro Glyph |
 | Genérico | `pulse` | Pulsa em `speed` Hz |
 
+## Stickers
+
+Ícones internos (memória, tarefa, ideia…) ficam em `Packs/<pack>/stickers/<id>.json`:
+polilinhas (`strokes`), polígonos preenchidos de branco (`shapes`) e círculos
+(`circles`, com `filled` para pontos pretos), numa caixa de 24×24 com origem no
+centro e y para cima. O motor desenha com o mesmo contorno, tinta e boil do
+Glyph. O cérebro pede um sticker na mão com `body.emote` (`"sticker": "folha"`).
+
+## Arte gerada
+
+`Scripts/gerar-arte.sh` (ou `swift run glyph-art`) grava, a partir do motor:
+
+- `docs/art/hero.svg`: cena do README, com a física e a navegação reais;
+- `docs/art/estados.svg`: galeria de estados do Dot;
+- `docs/art/clips/<id>.svg`: prévia animada de cada clipe;
+- `docs/art/stickers.svg` e `Packs/default/stickers/<id>.svg`;
+- `docs/art/logo.svg`, `docs/art/icon.svg` e o iconset do app.
+
+Os SVGs animados usam SMIL com `calcMode="discrete"`, ou seja, trocam de
+quadro sem interpolar ("em dois"). O CI falha se a arte ficar desatualizada.
+
 ## Como contribuir com um clipe
 
 1. Crie `Packs/default/clips/<id>.json` seguindo o formato.
 2. Rode `swift test`: o teste `PackTests` valida todos os clipes do pack.
-3. Grave um GIF curto no PR. Arte em `Packs/` é licenciada em CC BY 4.0.
+3. Rode `Scripts/gerar-arte.sh`: a prévia fica em `docs/art/clips/<id>.svg`. Arte em `Packs/` é licenciada em CC BY 4.0.
