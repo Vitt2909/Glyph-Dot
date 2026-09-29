@@ -14,6 +14,7 @@ public final class GlyphAppDelegate: NSObject, NSApplicationDelegate {
     private let started = Date()
     private lazy var summonPanel = SummonPanel()
     private lazy var approvalCard = ApprovalCard()
+    private var braked = false
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
         let pack = PackLocator.find()
@@ -52,7 +53,23 @@ public final class GlyphAppDelegate: NSObject, NSApplicationDelegate {
             guard let self, let body = self.body else { return }
             self.summonPanel.show(above: body.headPoint)
         }
+        // ⌃⌥⌘.: freio global. Pausa tudo; apertar de novo solta.
+        HotKeyCenter.shared.register(keyCode: kVK_ANSI_Period, modifiers: controlKey | optionKey | cmdKey) { [weak self] in
+            self?.toggleBrake()
+        }
         body.start()
+    }
+
+    private func toggleBrake() {
+        braked.toggle()
+        link?.send(.inputBrake(InputBrake(engage: braked)))
+        approvalCard.orderOut(nil)
+        if braked {
+            // Não espera o cérebro: o corpo já vai para casa.
+            body?.receive(.bodyGoto(BodyGoto(target: .home)))
+        } else {
+            body?.receive(.bubbleSay(BubbleSay(text: "voltei.")))
+        }
     }
 
     public func applicationWillTerminate(_ notification: Notification) {
@@ -63,6 +80,7 @@ public final class GlyphAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func summon(_ text: String) {
+        braked = false
         if mock != nil {
             sendToMock(.inputSummon(InputSummon(source: .hotkey, text: text)))
             return

@@ -24,6 +24,7 @@ final class ProtocolTests: XCTestCase {
             .hello(Hello(role: .body, capabilities: ["overlay"], name: "Glyph.app")),
             .worldUpdate(WorldUpdate(activeApp: "Terminal", activePID: 42, idleSeconds: 3.5, cursorNearGlyph: true, focus: .typing)),
             .inputSummon(InputSummon(source: .hotkey, text: "quanto está o dólar?")),
+            .inputBrake(InputBrake(engage: true)),
             .approvalResponse(ApprovalResponse(requestId: "a1", decision: .approve)),
             .approvalResponse(ApprovalResponse(requestId: "a2", decision: .deny)),
             .approvalResponse(ApprovalResponse(requestId: "a3", decision: .always(scope: "compute:~/dev/vk", expires: t0))),

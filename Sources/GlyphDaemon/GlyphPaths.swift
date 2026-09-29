@@ -18,6 +18,7 @@ public struct GlyphPaths: Sendable, Equatable {
     }
 
     public var socket: URL { support.appendingPathComponent("glyphd.sock") }
+    public var sensorSocket: URL { support.appendingPathComponent("sensors.sock") }
     public var casa: URL { support.appendingPathComponent("casa", isDirectory: true) }
     public var memoria: URL { casa.appendingPathComponent("memoria", isDirectory: true) }
     public var skills: URL { casa.appendingPathComponent("skills", isDirectory: true) }
@@ -28,6 +29,8 @@ public struct GlyphPaths: Sendable, Equatable {
     public var goals: URL { casa.appendingPathComponent("goals.yaml") }
     public var policy: URL { casa.appendingPathComponent("policy.yaml") }
     public var config: URL { casa.appendingPathComponent("config.yaml") }
+    public var history: URL { casa.appendingPathComponent("historico.jsonl") }
+    public var trust: URL { casa.appendingPathComponent("confianca.json") }
     public var logs: URL { support.appendingPathComponent("logs", isDirectory: true) }
 
     /// Cria a estrutura da casa (idempotente). Permissões 0700: é memória pessoal.

@@ -9,13 +9,17 @@ final class FakeBody: @unchecked Sendable {
     private let lock = NSLock()
     private var received: [Message] = []
     var autoApprove: Bool?
+    var alwaysApprove = false
 
     init(path: String) throws {
         conn = try UnixSocketClient.connect(path: path)
         conn.onLine = { [weak self] r in
             guard let self, case let .success(env) = r else { return }
             self.record(env.message)
-            if case .approvalRequest = env.message, let yes = self.autoApprove {
+            if case .approvalRequest = env.message, self.alwaysApprove {
+                self.conn.send(Envelope(id: "resp", message: .approvalResponse(ApprovalResponse(
+                    requestId: env.id, decision: .always(scope: "/", expires: Date().addingTimeInterval(365 * 86_400))))))
+            } else if case .approvalRequest = env.message, let yes = self.autoApprove {
                 self.conn.send(Envelope(id: "resp", message: .approvalResponse(
                     ApprovalResponse(requestId: env.id, decision: yes ? .approve : .deny))))
             }
