@@ -13,3 +13,4 @@ protocolo, mudança na trava de irreversíveis ou na escada de confiança
 | 0002 | [SwiftPM sem projeto Xcode](0002-swiftpm-sem-xcode.md) | Aceita |
 | 0003 | [App sem App Sandbox](0003-app-sem-sandbox.md) | Proposta |
 | 0004 | [Nenhuma dependência externa até o M2](0004-sem-dependencias-ate-m2.md) | Aceita |
+| 0005 | [M2 sem dependências: HTTP direto, YAML próprio, posix_spawn](0005-cerebro-sem-dependencias.md) | Aceita |

@@ -1,3 +1,49 @@
+# Relatório — M2 Cérebro reativo
+
+Branch: `feat/m2-cerebro` (empilhado sobre `feat/arte-svg`).
+
+## Feito
+
+| Área | Onde | O quê |
+|---|---|---|
+| Transporte | `GlyphIPC` | Socket Unix 0600 com `DispatchSource`, JSON por linha, credenciais do par (`SO_PEERCRED` no Linux, `getpeereid` + audit token no macOS) |
+| Confiança | `PeerVerifier` | Outro UID → recusa. Mesmo UID sem assinatura → corpo não verificado (percebe e chama, **não aprova**). Assinatura conferida por `SecCode` (equipe Developer ID ou cdhash pareado) → pode aprovar |
+| Cérebros | `GlyphDaemon/Brains` | Anthropic (Messages API, `claude-opus-5-5`, esforço configurável, fallback de recusa ligado, conteúdo do assistente reenviado intacto, `refusal` tratado, repetição em 429/5xx), OpenAI, Ollama, roteiro (testes) e offline |
+| Ferramentas | `GlyphDaemon/Tools` | `shell` (pastas permitidas, sem `sudo`, ambiente limpo, `posix_spawn` com grupo próprio para o timeout, `sandbox-exec` no macOS), `web_search` (DuckDuckGo/Brave/SearXNG), `web_fetch` (só hosts públicos), `open` |
+| Classificação | `Core/Policy/CommandClassifier` | Cada comando de shell ganha a classe mais arriscada possível: push na main e push forçado são `destructive`; desconhecido é `external_effect` |
+| Agente | `AgentLoop` | Pergunta → cérebro → portão → ferramenta → resultado → resposta. Leitura roda; `compute` roda e avisa; o resto pede; `financial` nunca. Depois de conteúdo observado, até `compute` pede |
+| Servidor | `GlyphServer` | Encena o trabalho no corpo: pensa (Dot orbita), vai até a janela do navegador/terminal, trabalha, volta, fala. Aprovação só de corpo verificado; timeout nega |
+| Config | `MiniYAML` + `DaemonConfig` | `casa/config.yaml` (modelo `config`), chaves no Keychain ou em variáveis de ambiente, log diário com redação de segredos |
+| LaunchAgent | `LaunchAgent` | `glyphd install/uninstall`, reinicia só se morrer com erro |
+| Corpo | `GlyphBody/Brain` | `BrainLink` (reconecta sozinho), campo de chamada com ⌃⌥Espaço (Carbon, sem Acessibilidade), cartão de aprovação (sem "sempre" para irreversíveis), resumo das janelas sem títulos |
+
+## Aceite
+
+| Critério | Estado |
+|---|---|
+| "Glyph, quanto está o dólar?" → vai ao navegador, consulta pela ferramenta, volta e responde na bolha | ✅ `ServerTests.testDollarQuestionEndToEnd` pelo socket real, com cérebro roteirizado e busca com HTTP falso. ⚠️ Com a API real, falta testar num Mac com chave |
+| `glyphd` como LaunchAgent | ✅ plist testado; ⚠️ `launchctl bootstrap` só num Mac |
+| Ferramentas `shell` (sandbox) e `web.search` | ✅ testadas (timeout mata a árvore, ambiente limpo, pastas) |
+
+`swift test`: **176 testes** verdes em Linux.
+
+## Decisões tomadas sozinho
+
+1. **Sem dependências** (ADR 0005): HTTP direto, YAML próprio, `posix_spawn`.
+2. **Modelo padrão `claude-opus-5-5`** com `effort: medium` e o fallback de
+   recusa (`fallbacks: "default"`) **ligado por padrão**. Desliga com
+   `fallbacks: false` no `config.yaml`.
+3. **Sem Developer ID, aprovação só com cdhash pareado** (`glyphd pair`). Um
+   build ad hoc qualquer com o mesmo identificador não aprova nada.
+4. **`--dev`** permite aprovar de um corpo não verificado, só para desenvolvimento.
+5. **Resposta de até 40 caracteres** pedida no prompt do sistema e cortada no corpo.
+6. **O "sempre permitir" do cartão** ainda vale só como aprovação da vez: a
+   regra com escopo e validade em `policy.yaml` é do M3.
+7. **`world.update` ganhou `windows` e `glyph`** (campos opcionais): donos e
+   posições das janelas, nunca títulos, para o cérebro saber aonde "ir".
+
+---
+
 # Relatório — M1 A criatura muda
 
 Branch: `feat/m1-criatura` (sai de `feat/m0-fundacao`). Sem IA nenhuma.

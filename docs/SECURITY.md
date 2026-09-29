@@ -22,7 +22,7 @@ Inclua: versão/commit, passos para reproduzir, impacto esperado.
 
 | Fronteira | Ameaça | Defesa |
 |---|---|---|
-| Socket corpo ↔ cérebro | Outro processo se passa pelo corpo e aprova ações | UID do par + assinatura do app via audit token; `approval.response` só aceito do app assinado (docs/PROTOCOL.md) |
+| Socket corpo ↔ cérebro | Outro processo se passa pelo corpo e aprova ações | UID do par + assinatura do app via audit token; `approval.response` só aceito do app assinado (docs/PROTOCOL.md). Com Developer ID, a exigência é "assinado pela equipe X"; sem ele, só vale um cdhash pareado com `glyphd pair` |
 | Socket corpo ↔ cérebro | Outro processo se passa pelo cérebro e pede aprovações falsas | Corpo só conecta ao socket do usuário, em pasta 0700; `approval.request` só aceito do `glyphd` |
 | Conteúdo observado → cérebro | **Injeção de prompt** em página, arquivo, saída de terminal | Conteúdo observado entra como `trusted: false`; ações com efeito derivadas dele sempre pedem aprovação; nunca cria objetivo |
 | Cérebro → mundo | Ação irreversível autônoma | Trava por classe em código (docs/AUTONOMY.md); `financial` proibida; `destructive` com dupla confirmação |
@@ -50,7 +50,12 @@ tarefas, todos os Glyphs voltam para casa. (M3)
 |---|---|
 | Regras de remetente no protocolo | Implementado e testado (M0) |
 | Rejeição de `financial` no protocolo | Implementado e testado (M0) |
-| Socket autenticado | M2 |
-| Trava de irreversíveis, escada de confiança | M3 |
+| Socket autenticado (UID + assinatura/cdhash via audit token) | M2 ✅ |
+| Corpo não verificado não aprova | M2 ✅ (testado) |
+| Aprovação sem resposta → negada | M2 ✅ (testado) |
+| `shell`: pastas permitidas, sem `sudo`, ambiente limpo, timeout do grupo, `sandbox-exec` no macOS | M2 ✅ |
+| Conteúdo observado marcado; depois dele, até `compute` pede | M2 ✅ (testado) |
+| `web_fetch` bloqueia localhost e redes privadas | M2 ✅ |
+| Keychain, redação de logs | M2 ✅ |
+| Trava de irreversíveis com escada de confiança | M3 |
 | Freio global | M3 |
-| Keychain, redação de logs | M2 |
