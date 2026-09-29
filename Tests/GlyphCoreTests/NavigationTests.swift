@@ -48,6 +48,25 @@ final class NavigationTests: XCTestCase {
         XCTAssertEqual(s.support, .ground(.window(2)))
     }
 
+    func testLowCeilingStillJumpsAcrossGap() {
+        // Janelas altas, perto da barra de menu: o arco precisa caber embaixo dela.
+        let screen = ScreenInfo(id: 1, frame: Rect(x: 0, y: 0, width: 480, height: 230),
+                                visibleFrame: Rect(x: 0, y: 26, width: 480, height: 188), menuBarHeight: 16)
+        let a = TestWorlds.win(1, 28, 64, 172, 100), b = TestWorlds.win(2, 262, 44, 186, 92)
+        let w = TestWorlds.world([a, b], screens: [screen])
+        var s = BodyState(position: Vec2(112, 164))
+        s.support = .ground(.window(1))
+        XCTAssertTrue(travel(&s, to: .surface(.window(2), x: 355), in: w))
+        XCTAssertEqual(s.support, .ground(.window(2)))
+    }
+
+    func testJumpRespectsCeiling() {
+        let c = PhysicsConfig()
+        XCTAssertNil(JumpSolver.solve(from: Vec2(0, 100), to: Vec2(10, 120), config: c, maxApex: 115))
+        let sol = JumpSolver.solve(from: Vec2(0, 100), to: Vec2(60, 90), config: c, maxApex: 112)!
+        XCTAssertLessThanOrEqual(sol.apexY, 112)
+    }
+
     func testGoHome() {
         let w = TestWorlds.world([TestWorlds.win(1, 300, 200, 400, 300)])
         var s = onFloor(900)
