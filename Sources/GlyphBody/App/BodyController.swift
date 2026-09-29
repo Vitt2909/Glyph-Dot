@@ -23,6 +23,11 @@ public final class BodyController: NSObject {
     public var onSend: ((Message) -> Void)?
     /// Duplo clique no Glyph: abrir a casa.
     public var onOpenHome: (() -> Void)?
+    /// Estado do mundo para o cérebro (no máximo 1×/s; o link só envia se mudou).
+    public var onWorld: ((WorldUpdate) -> Void)?
+    private var summaries: [WindowSummary] = []
+    private var fullscreen = false
+    private var lastWorldReport = Date.distantPast
 
     public init(clips: ClipLibrary, stickers: [String: Sticker] = [:]) {
         let (snapshot, _) = SystemWorldReader().read()
@@ -65,6 +70,24 @@ public final class BodyController: NSObject {
         wake()
     }
 
+    /// O que o corpo conta ao cérebro. Sem títulos de janela, sem conteúdo.
+    public var worldForBrain: WorldUpdate {
+        let front = NSWorkspace.shared.frontmostApplication
+        let idle = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: CGEventType(rawValue: ~0)!)
+        let near = engine.hitbox.map { Vec2(NSEvent.mouseLocation).distance(to: $0.center) < 160 } ?? false
+        return WorldUpdate(activeApp: front?.localizedName, activePID: front?.processIdentifier,
+                           idleSeconds: max(0, idle), cursorNearGlyph: near,
+                           focus: fullscreen ? .fullscreen : .normal,
+                           windows: summaries, glyph: engine.isHidden ? nil : engine.body.position)
+    }
+
+    /// Ponto acima da cabeça do Glyph (para cartões e o campo de chamada).
+    public var headPoint: CGPoint {
+        if let b = engine.hitbox { return CGPoint(x: b.midX, y: b.maxY) }
+        let s = NSScreen.main?.frame ?? .zero
+        return CGPoint(x: s.midX, y: s.maxY - 80)
+    }
+
     public func approvalAnswered() {
         engine.approvalAnswered()
         wake()
@@ -94,9 +117,15 @@ public final class BodyController: NSObject {
     // MARK: - Entradas
 
     private func pollWorld() {
-        let (snapshot, fullscreen) = reader.read()
+        let (snapshot, fullscreen, summaries) = reader.readAll()
+        self.summaries = summaries
+        self.fullscreen = fullscreen
         engine.setWorld(snapshot)
         engine.setFullscreen(fullscreen)
+        if Date().timeIntervalSince(lastWorldReport) >= 1 {
+            lastWorldReport = Date()
+            onWorld?(worldForBrain)
+        }
         if displayLink?.isPaused ?? true {
             // Sem quadros: o relógio anda pelo timer.
             engine.advance(by: 0.1)

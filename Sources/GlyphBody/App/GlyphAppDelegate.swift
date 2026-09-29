@@ -1,17 +1,19 @@
 #if canImport(AppKit)
 import AppKit
+import Carbon.HIToolbox
 import GlyphCore
 
-/// O app: um `BodyController` e, com `GLYPH_MOCK=1`, um cérebro falso.
-///
-/// Sem `glyphd` (M2) e sem mock, o Glyph é a criatura "muda" do M1: vive,
-/// anda, reage ao cursor, mas não fala com cérebro nenhum.
+/// O app: o corpo, ligado ao `glyphd` pelo socket (ou ao cérebro falso com
+/// `GLYPH_MOCK=1`). Sem `glyphd`, o Glyph é a criatura "muda" do M1.
 @MainActor
 public final class GlyphAppDelegate: NSObject, NSApplicationDelegate {
     private var body: BodyController?
+    private var link: BrainLink?
     private var mock: MockBrain?
     private var mockTimer: Timer?
     private let started = Date()
+    private lazy var summonPanel = SummonPanel()
+    private lazy var approvalCard = ApprovalCard()
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
         let pack = PackLocator.find()
@@ -31,13 +33,52 @@ public final class GlyphAppDelegate: NSObject, NSApplicationDelegate {
             mockTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
                 MainActor.assumeIsolated { self?.pollMock() }
             }
+        } else {
+            let link = BrainLink(socketPath: BrainLink.defaultSocketPath)
+            link.onMessage = { [weak self] env in self?.fromBrain(env) }
+            body.onSend = { [weak link] m in link?.send(m) }
+            body.onWorld = { [weak link] w in link?.updateWorld(w) }
+            link.start()
+            self.link = link
+        }
+
+        summonPanel.onSubmit = { [weak self] text in self?.summon(text) }
+        approvalCard.onAnswer = { [weak self] id, decision in
+            self?.link?.send(.approvalResponse(ApprovalResponse(requestId: id, decision: decision)))
+            self?.body?.approvalAnswered()
+        }
+        // ⌃⌥Espaço: chamar o Glyph.
+        HotKeyCenter.shared.register(keyCode: kVK_Space, modifiers: controlKey | optionKey) { [weak self] in
+            guard let self, let body = self.body else { return }
+            self.summonPanel.show(above: body.headPoint)
         }
         body.start()
     }
 
     public func applicationWillTerminate(_ notification: Notification) {
         mockTimer?.invalidate()
+        link?.stop()
+        HotKeyCenter.shared.unregisterAll()
         body?.stop()
+    }
+
+    private func summon(_ text: String) {
+        if mock != nil {
+            sendToMock(.inputSummon(InputSummon(source: .hotkey, text: text)))
+            return
+        }
+        guard let link, link.isConnected else {
+            body?.receive(.bubbleSay(BubbleSay(text: "sem cérebro: glyphd parado.")))
+            return
+        }
+        link.send(.inputSummon(InputSummon(source: .hotkey, text: text)))
+    }
+
+    private func fromBrain(_ env: Envelope) {
+        if case let .approvalRequest(r) = env.message, let body {
+            approvalCard.show(id: env.id, request: r, above: body.headPoint)
+        }
+        body?.receive(env.message)
     }
 
     private func pollMock() {

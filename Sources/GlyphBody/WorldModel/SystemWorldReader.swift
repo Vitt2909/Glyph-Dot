@@ -16,15 +16,21 @@ public struct SystemWorldReader {
     public init() {}
 
     public func read() -> (snapshot: WorldSnapshot, fullscreen: Bool) {
+        let r = readAll()
+        return (r.snapshot, r.fullscreen)
+    }
+
+    /// Mundo físico + resumo das janelas (dono e posição, nunca o título) para o cérebro.
+    public func readAll() -> (snapshot: WorldSnapshot, fullscreen: Bool, summaries: [WindowSummary]) {
         let screens = NSScreen.screens.map(screenInfo)
         // O CGWindowList usa origem no topo esquerdo da tela principal.
         let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
-        let windows = readWindows(primaryHeight: primaryHeight)
+        let (windows, summaries) = readWindows(primaryHeight: primaryHeight)
         let fullscreen = windows.first.map { front in
             screens.contains { s in abs(front.frame.width - s.frame.width) < 1 && abs(front.frame.height - s.frame.height) < 1
                 && abs(front.frame.minX - s.frame.minX) < 1 && abs(front.frame.minY - s.frame.minY) < 1 }
         } ?? false
-        return (WorldSnapshot(screens: screens, windows: windows), fullscreen)
+        return (WorldSnapshot(screens: screens, windows: windows), fullscreen, summaries)
     }
 
     private func screenInfo(_ s: NSScreen) -> ScreenInfo {
@@ -47,10 +53,11 @@ public struct SystemWorldReader {
         return ScreenInfo(id: id, frame: frame, visibleFrame: visible, menuBarHeight: menuBar, notch: notch)
     }
 
-    private func readWindows(primaryHeight: Double) -> [WindowInfo] {
+    private func readWindows(primaryHeight: Double) -> ([WindowInfo], [WindowSummary]) {
         let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
-        guard let list = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else { return [] }
+        guard let list = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else { return ([], []) }
         var out: [WindowInfo] = []
+        var summaries: [WindowSummary] = []
         for info in list {
             guard (info[kCGWindowLayer as String] as? Int) == 0,
                   let pid = (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value, pid != ownPID,
@@ -62,8 +69,11 @@ public struct SystemWorldReader {
             guard bounds.width >= minWindowSize.width, bounds.height >= minWindowSize.height else { continue }
             let frame = WorldCoordinates.fromCG(Rect(bounds), primaryHeight: primaryHeight)
             out.append(WindowInfo(id: number, pid: pid, frame: frame))
+            if summaries.count < 12, let owner = info[kCGWindowOwnerName as String] as? String {
+                summaries.append(WindowSummary(pid: pid, app: owner, frame: frame))
+            }
         }
-        return out // já vem da frente para trás
+        return (out, summaries) // já vem da frente para trás
     }
 }
 #endif
