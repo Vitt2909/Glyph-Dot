@@ -9,6 +9,8 @@ public enum GateDecision: Sendable, Equatable {
     case allowAndAnnounce
     /// Pede aprovação antes.
     case ask
+    /// Pede duas vezes (`destructive`).
+    case askTwice
     /// Não executa. O motivo volta para o modelo.
     case deny(String)
 }
@@ -16,7 +18,13 @@ public enum GateDecision: Sendable, Equatable {
 /// Quem decide se uma ação pode rodar. No M2 é uma regra fixa por classe; no
 /// M3 vira a política com escada de confiança.
 public protocol ActionGate: Sendable {
-    func decide(tool: String, actionClass: ActionClass, trusted: Bool) async -> GateDecision
+    func decide(tool: String, actionClass: ActionClass, scope: String, trusted: Bool, userInitiated: Bool) async -> GateDecision
+    /// Resultado de um pedido de aprovação (alimenta a escada de confiança).
+    func feedback(tool: String, actionClass: ActionClass, scope: String, approved: Bool) async
+}
+
+extension ActionGate {
+    public func feedback(tool: String, actionClass: ActionClass, scope: String, approved: Bool) async {}
 }
 
 /// Regra do M2: leitura roda; `compute` roda e avisa; o resto pede;
@@ -24,12 +32,13 @@ public protocol ActionGate: Sendable {
 public struct StaticGate: ActionGate {
     public init() {}
 
-    public func decide(tool: String, actionClass: ActionClass, trusted: Bool) async -> GateDecision {
+    public func decide(tool: String, actionClass: ActionClass, scope: String, trusted: Bool, userInitiated: Bool) async -> GateDecision {
         switch actionClass {
         case .financial: return .deny("ações financeiras são proibidas")
         case .read, .networkRead: return .allow
         case .compute: return trusted ? .allowAndAnnounce : .ask
-        case .localWrite, .externalEffect, .destructive: return .ask
+        case .localWrite, .externalEffect: return .ask
+        case .destructive: return .askTwice
         }
     }
 }
@@ -41,7 +50,7 @@ public protocol AgentCues: Sendable {
     func willUse(tool: String, place: ToolPlace, summary: String) async
     func didUse(tool: String, output: ToolOutput) async
     /// Pede aprovação. `true` = aprovado. Sem resposta até o timeout = negado.
-    func approve(action: String, target: String, actionClass: ActionClass, why: String) async -> Bool
+    func approve(action: String, target: String, actionClass: ActionClass, scope: String, why: String) async -> Bool
     func announce(_ text: String) async
 }
 
@@ -52,7 +61,7 @@ public struct SilentCues: AgentCues {
     public func thinking() async {}
     public func willUse(tool: String, place: ToolPlace, summary: String) async {}
     public func didUse(tool: String, output: ToolOutput) async {}
-    public func approve(action: String, target: String, actionClass: ActionClass, why: String) async -> Bool { approveAll }
+    public func approve(action: String, target: String, actionClass: ActionClass, scope: String, why: String) async -> Bool { approveAll }
     public func announce(_ text: String) async {}
 }
 
@@ -81,6 +90,8 @@ public struct AgentLoop: Sendable {
     public var gate: any ActionGate
     public var maxSteps: Int
     public var system: String
+    /// O usuário pediu agora (chamado) ou o Glyph agiu sozinho (autonomia).
+    public var userInitiated: Bool = true
 
     public init(brain: any Brain, tools: ToolRegistry, gate: any ActionGate = StaticGate(), maxSteps: Int = 8,
                 system: String = AgentLoop.defaultSystem) {
@@ -115,6 +126,7 @@ public struct AgentLoop: Sendable {
         var untrustedSeen = false
 
         for _ in 0..<maxSteps {
+            try Task.checkCancellation()
             await cues.thinking()
             let reply = try await brain.respond(system: system, turns: turns, tools: tools.specs)
             usage = usage + reply.usage
@@ -140,16 +152,24 @@ public struct AgentLoop: Sendable {
                     continue
                 }
                 let cls = tool.classify(call.input)
+                let scope = tool.scope(call.input)
                 // Depois de ler conteúdo observado, qualquer ação com efeito pede.
-                let decision = await gate.decide(tool: call.name, actionClass: cls, trusted: !untrustedSeen)
+                let decision = await gate.decide(tool: call.name, actionClass: cls, scope: scope,
+                                                 trusted: !untrustedSeen, userInitiated: userInitiated)
                 var step = AgentStep(tool: call.name, input: call.input, actionClass: cls, decision: decision, approved: false)
                 var approved = false
                 switch decision {
                 case .allow, .allowAndAnnounce:
                     approved = true
-                case .ask:
+                case .ask, .askTwice:
                     approved = await cues.approve(action: call.name, target: tool.summarize(call.input),
-                                                  actionClass: cls, why: String(reply.text.prefix(120)))
+                                                  actionClass: cls, scope: scope, why: String(reply.text.prefix(120)))
+                    if approved, decision == .askTwice {
+                        // Dupla confirmação: não tem volta.
+                        approved = await cues.approve(action: call.name, target: tool.summarize(call.input),
+                                                      actionClass: cls, scope: scope, why: "tem certeza? isto não tem volta.")
+                    }
+                    await gate.feedback(tool: call.name, actionClass: cls, scope: scope, approved: approved)
                 case let .deny(why):
                     results.append(ToolResult(callID: call.id, name: call.name, content: "negado: \(why)", isError: true))
                     steps.append(step)

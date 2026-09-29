@@ -136,6 +136,9 @@ public struct WebFetchTool: Tool {
     public var place: ToolPlace { .browser }
 
     public func summarize(_ input: JSONValue) -> String { "ler: " + (input["url"]?.stringValue ?? "") }
+    public func scope(_ input: JSONValue) -> String {
+        input["url"]?.stringValue.flatMap { URL(string: $0)?.host } ?? "*"
+    }
 
     /// Bloqueia endereços locais e privados: um texto malicioso numa página
     /// não pode fazer o Glyph sondar a rede da casa.

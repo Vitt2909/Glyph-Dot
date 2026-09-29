@@ -44,6 +44,8 @@ public protocol Tool: Sendable {
     func classify(_ input: JSONValue) -> ActionClass
     /// Um resumo de uma linha para cartões de aprovação e histórico.
     func summarize(_ input: JSONValue) -> String
+    /// Escopo da escada de confiança (pasta, domínio). Padrão: "*".
+    func scope(_ input: JSONValue) -> String
     func run(_ input: JSONValue) async throws -> ToolOutput
 }
 
@@ -52,6 +54,7 @@ extension Tool {
     public var place: ToolPlace { .none }
     public func classify(_ input: JSONValue) -> ActionClass { actionClass }
     public func summarize(_ input: JSONValue) -> String { "\(spec.name) \(input)" }
+    public func scope(_ input: JSONValue) -> String { "*" }
 }
 
 /// Envolve conteúdo observado para o modelo tratá-lo como dado.

@@ -43,6 +43,11 @@ public struct ShellTool: Tool {
         "$ " + (input["command"]?.stringValue ?? "")
     }
 
+    /// Escopo: a pasta de trabalho (sem o `~` expandido, para casar com as regras).
+    public func scope(_ input: JSONValue) -> String {
+        Scope.normalize(Self.expand(input["cwd"]?.stringValue ?? config.allowedRoots.first ?? "~"))
+    }
+
     static func expand(_ path: String) -> String {
         let p = path.hasPrefix("~") ? NSHomeDirectory() + path.dropFirst() : path
         return URL(fileURLWithPath: p).standardizedFileURL.resolvingSymlinksInPath().path
