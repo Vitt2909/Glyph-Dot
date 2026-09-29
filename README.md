@@ -4,12 +4,26 @@
 > Parece um pequeno desenho que ganhou vida. Age sozinha no que é
 > reversível e pede no que não é.
 
-<!-- O GIF do M1 entra aqui. Ele é o marketing do projeto. -->
+<p align="center">
+  <img src="docs/art/hero.svg" alt="O Glyph cai numa janela, atravessa pendurado na barra de menu, pousa na outra janela e acena para o cursor" width="720">
+</p>
+
+<p align="center"><sub>Gravado do próprio motor (<code>swift run glyph-art</code>): física, navegação e animação de verdade, a 12 fps.</sub></p>
 
 **Status:** em construção. Veja os [marcos](#marcos) e o [`RELATORIO.md`](RELATORIO.md).
 
 "Glyph" é o projeto; "Dot" é o núcleo da criatura, o pontinho que pensa,
 orbita e esmaece.
+
+## Estados do Dot
+
+O Dot muda de **comportamento**, não de cor.
+
+<p align="center"><img src="docs/art/estados.svg" alt="Galeria: repouso, observando, pensando, trabalhando, esperando você, perigo, erro, dormindo, carregado, acenando, pendurado, chamando ajuda" width="760"></p>
+
+Ícones internos também são adesivos desenhados, nunca emoji:
+
+<p align="center"><img src="docs/art/stickers.svg" alt="Stickers: alfinete, cartão, casa, chave, diário, escudo, folha, lâmpada, lupa, mochila, pausa, pincel, relógio" width="448"></p>
 
 ## Princípios
 

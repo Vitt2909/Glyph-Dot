@@ -34,12 +34,15 @@ public struct SkeletonMetrics: Sendable, Equatable {
     public var legUpper = 9.0
     public var legLower = 9.0
     public var torso = 13.0
-    public var armUpper = 7.5
-    public var armLower = 7.5
+    public var armUpper = 9.0
+    public var armLower = 9.0
     public var headRadius = 6.0
     public var neck = 1.5
     /// Onde os braços saem, como fração do tronco a partir do quadril.
     public var shoulderAt = 0.85
+    /// Distância de cada ombro ao eixo do tronco: os braços não saem do
+    /// mesmo ponto, senão um braço levantado some atrás da cabeça.
+    public var shoulderSpread = 2.5
     public var dotRadius = 2.6
 
     public init() {}
@@ -68,14 +71,14 @@ public struct Pose: Sendable, Equatable {
     public static let rest = Pose([
         Joint.torso.rawValue: 0,
         Joint.head.rawValue: 0,
-        Joint.armLUpper.rawValue: 20,
-        Joint.armLLower.rawValue: 10,
-        Joint.armRUpper.rawValue: -20,
-        Joint.armRLower.rawValue: -10,
-        Joint.legLUpper.rawValue: 8,
-        Joint.legLLower.rawValue: -4,
-        Joint.legRUpper.rawValue: -8,
-        Joint.legRLower.rawValue: 4,
+        Joint.armLUpper.rawValue: 24,
+        Joint.armLLower.rawValue: 8,
+        Joint.armRUpper.rawValue: -24,
+        Joint.armRLower.rawValue: -8,
+        Joint.legLUpper.rawValue: 13,
+        Joint.legLLower.rawValue: -6,
+        Joint.legRUpper.rawValue: -13,
+        Joint.legRLower.rawValue: 6,
     ])
 
     /// Sobrepõe `other`: canais presentes em `other` vencem.
@@ -112,6 +115,8 @@ public struct SkeletonPoints: Sendable, Equatable {
     public var hip: Vec2
     public var neck: Vec2
     public var shoulder: Vec2
+    public var shoulderL: Vec2
+    public var shoulderR: Vec2
     public var headCenter: Vec2
     public var headRadius: Double
     public var elbowL: Vec2
@@ -127,19 +132,20 @@ public struct SkeletonPoints: Sendable, Equatable {
     public var strokes: [[Vec2]] {
         [
             [hip, neck],
-            [shoulder, elbowL, handL],
-            [shoulder, elbowR, handR],
+            [shoulder, shoulderL, elbowL, handL],
+            [shoulder, shoulderR, elbowR, handR],
             [hip, kneeL, footL],
             [hip, kneeR, footR],
         ]
     }
 
     public var allPoints: [Vec2] {
-        [hip, neck, shoulder, headCenter, elbowL, handL, elbowR, handR, kneeL, footL, kneeR, footR]
+        [hip, neck, shoulder, shoulderL, shoulderR, headCenter, elbowL, handL, elbowR, handR, kneeL, footL, kneeR, footR]
     }
 
     public func mapped(_ f: (Vec2) -> Vec2) -> SkeletonPoints {
-        SkeletonPoints(hip: f(hip), neck: f(neck), shoulder: f(shoulder), headCenter: f(headCenter),
+        SkeletonPoints(hip: f(hip), neck: f(neck), shoulder: f(shoulder), shoulderL: f(shoulderL),
+                       shoulderR: f(shoulderR), headCenter: f(headCenter),
                        headRadius: headRadius, elbowL: f(elbowL), handL: f(handL), elbowR: f(elbowR),
                        handR: f(handR), kneeL: f(kneeL), footL: f(footL), kneeR: f(kneeR), footR: f(footR))
     }
@@ -176,12 +182,16 @@ public enum ForwardKinematics {
             return (mid, end)
         }
 
-        let (elbowL, handL) = limb(shoulder, .armLUpper, .armLLower, m.armUpper, m.armLower)
-        let (elbowR, handR) = limb(shoulder, .armRUpper, .armRLower, m.armUpper, m.armLower)
+        // Lado anatômico esquerdo fica à direita da tela (+x).
+        let across = Vec2(torsoDir.y, -torsoDir.x) * m.shoulderSpread
+        let shoulderL = shoulder + across, shoulderR = shoulder - across
+        let (elbowL, handL) = limb(shoulderL, .armLUpper, .armLLower, m.armUpper, m.armLower)
+        let (elbowR, handR) = limb(shoulderR, .armRUpper, .armRLower, m.armUpper, m.armLower)
         let (kneeL, footL) = limb(hip, .legLUpper, .legLLower, m.legUpper, m.legLower)
         let (kneeR, footR) = limb(hip, .legRUpper, .legRLower, m.legUpper, m.legLower)
 
-        let raw = SkeletonPoints(hip: hip, neck: neck, shoulder: shoulder, headCenter: headCenter,
+        let raw = SkeletonPoints(hip: hip, neck: neck, shoulder: shoulder, shoulderL: shoulderL,
+                                 shoulderR: shoulderR, headCenter: headCenter,
                                  headRadius: m.headRadius, elbowL: elbowL, handL: handL, elbowR: elbowR,
                                  handR: handR, kneeL: kneeL, footL: footL, kneeR: kneeR, footR: footR)
         let f = facing < 0 ? -1.0 : 1.0

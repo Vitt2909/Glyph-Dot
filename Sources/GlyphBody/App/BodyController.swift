@@ -24,9 +24,9 @@ public final class BodyController: NSObject {
     /// Duplo clique no Glyph: abrir a casa.
     public var onOpenHome: (() -> Void)?
 
-    public init(clips: ClipLibrary) {
+    public init(clips: ClipLibrary, stickers: [String: Sticker] = [:]) {
         let (snapshot, _) = SystemWorldReader().read()
-        engine = GlyphEngine(world: snapshot, clips: clips)
+        engine = GlyphEngine(world: snapshot, clips: clips, stickers: stickers)
         super.init()
     }
 

@@ -63,6 +63,12 @@ public struct StickerShapes: Sendable, Equatable {
         for p in d.dot.particles {
             out.discs.append(.init(center: p + d.position, radius: d.dot.radius * 0.55, opacity: dotOpacity))
         }
+        if let held = d.held {
+            let s = held.shapes(at: d.heldAnchor + d.position, scale: 0.7, frame: d.boilFrame)
+            out.fills += s.fills
+            out.strokes += s.strokes
+            out.discs += s.discs
+        }
         for i in 0..<d.budgetDots {
             let p = Vec2(sk.headCenter.x + sk.headRadius + 6 + Double(i) * 5, sk.headCenter.y)
             out.discs.append(.init(center: p + d.position, radius: 1.2, opacity: 1))

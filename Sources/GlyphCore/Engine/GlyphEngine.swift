@@ -27,6 +27,8 @@ public struct GlyphEngine: Sendable {
     // Entradas e dependências
     public let config: Config
     public let clips: ClipLibrary
+    public let stickers: [String: Sticker]
+    private var held: (sticker: Sticker, until: Double)?
     private let sim: PhysicsSimulator
     private let metrics = SkeletonMetrics()
     private let dotAnimator = DotAnimator()
@@ -54,6 +56,7 @@ public struct GlyphEngine: Sendable {
     private var follower: PathFollower?
     private var replanAt = 0.0
     private var pendingJump: (control: Control, at: Double)?
+    private var failures = 0
 
     // Cursor e mouse
     private var cursor = CursorTracker()
@@ -96,9 +99,11 @@ public struct GlyphEngine: Sendable {
 
     private var events: [EngineEvent] = []
 
-    public init(world snapshot: WorldSnapshot, clips: ClipLibrary, config: Config = Config(), start: Vec2? = nil) {
+    public init(world snapshot: WorldSnapshot, clips: ClipLibrary, stickers: [String: Sticker] = [:],
+                config: Config = Config(), start: Vec2? = nil) {
         self.config = config
         self.clips = clips
+        self.stickers = stickers
         self.sim = PhysicsSimulator(config: config.physics, metrics: BodyMetrics())
         self.rng = SplitMix64(seed: config.seed)
         self.world = World(snapshot)
@@ -212,6 +217,7 @@ public struct GlyphEngine: Sendable {
             if let mode = e.dot ?? clips[e.clip]?.dot?.mode {
                 brainDot = (mode, clips[e.clip]?.dot?.speed ?? 1, time, time + 8)
             }
+            if let id = e.sticker, let s = stickers[id] { held = (s, time + 4) }
         case let .bodyGoto(g):
             switch g.target {
             case .home:
@@ -269,6 +275,7 @@ public struct GlyphEngine: Sendable {
         if let a = approval, time > a.until { approval = nil } // sem resposta: o cérebro nega
         if let t = brainTarget, time > t.until { brainTarget = nil }
         if let d = brainDot, time > d.until { brainDot = nil }
+        if let h = held, time > h.until { held = nil }
 
         let moving = abs(body.velocity.x) > 5 || !body.support.isGrounded
         let near = cursor.position.map { $0.distance(to: body.position) < 200 } ?? false
@@ -292,19 +299,23 @@ public struct GlyphEngine: Sendable {
         }
 
         updateHome()
-        var control = drive()
 
-        // Antecipação: agacha 0,1 s antes de pular.
-        if control.jump != nil, body.support.isGrounded, pendingJump == nil {
-            pendingJump = (control, time + 0.1)
-            spring.set(0.85)
-            control = Control()
-        } else if let pj = pendingJump {
+        // Antecipação: agacha 0,1 s antes de pular. Enquanto isso o seguidor
+        // de caminho não é consultado (senão veria "pulou e continua no chão").
+        var control: Control
+        if let pj = pendingJump {
             if time >= pj.at {
                 control = pj.control
                 pendingJump = nil
                 spring.kick(2.2)
             } else {
+                control = Control()
+            }
+        } else {
+            control = drive()
+            if control.jump != nil, body.support.isGrounded {
+                pendingJump = (control, time + 0.1)
+                spring.set(0.85)
                 control = Control()
             }
         }
@@ -414,6 +425,7 @@ public struct GlyphEngine: Sendable {
 
     private mutating func setGoal(_ g: NavGoal?) {
         goal = g
+        failures = 0
         follower = nil
         replanAt = time
     }
@@ -466,6 +478,15 @@ public struct GlyphEngine: Sendable {
             return Control()
         case .failed:
             follower = nil
+            failures += 1
+            if failures >= 4 {
+                // Tentou e não deu: desiste em vez de ficar pulando para sempre.
+                failures = 0
+                self.goal = nil
+                if brainTarget != nil { brainTarget = nil; say("hm.") }
+                picker.force(.idle)
+                return Control()
+            }
             replanAt = time + 0.2
             return Control()
         }
@@ -480,6 +501,7 @@ public struct GlyphEngine: Sendable {
 
     private mutating func arrived() {
         follower = nil
+        failures = 0
         let g = goal
         goal = nil
         switch intent {
@@ -673,9 +695,11 @@ public struct GlyphEngine: Sendable {
         }
         if sleepStart != nil { opacity = 0.85 }
 
+        var holding = held?.sticker
+        if approval != nil, locomotion == .stand { holding = stickers["cartao"] ?? holding }
         let d = GlyphDrawing(position: body.position, skeleton: sk, dot: dot, eyes: eyes,
                              boilFrame: Int(time * 24), bubble: bubble?.text, budgetDots: budgetDots,
-                             opacity: opacity)
+                             opacity: opacity, held: holding)
         lastBounds = d.bounds
         return d
     }

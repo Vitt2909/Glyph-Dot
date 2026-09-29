@@ -3,7 +3,7 @@
   "fps": 12,
   "loop": true,
   "keys": [
-    {"t": 0, "ease": "inOut", "pose": {"armL.upper": 172, "armL.lower": 0, "armR.upper": -172, "armR.lower": 0, "legL.upper": 10, "legR.upper": -4, "legR.lower": -10}},
-    {"t": 0.6, "ease": "inOut", "pose": {"armL.upper": 172, "armL.lower": 0, "armR.upper": -172, "armR.lower": 0, "legL.upper": -4, "legL.lower": -10, "legR.upper": 10}}
+    {"t": 0, "ease": "inOut", "pose": {"armL.upper": 155, "armL.lower": 0, "armR.upper": -155, "armR.lower": 0, "legL.upper": 14, "legR.upper": -8, "legR.lower": -10}},
+    {"t": 0.6, "ease": "inOut", "pose": {"armL.upper": 155, "armL.lower": 0, "armR.upper": -155, "armR.lower": 0, "legL.upper": 8, "legL.lower": -10, "legR.upper": -14}}
   ]
 }

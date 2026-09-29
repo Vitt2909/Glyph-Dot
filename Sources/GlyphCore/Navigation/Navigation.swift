@@ -110,7 +110,11 @@ public struct NavGraph: Sendable {
                     from = Vec2(dir > 0 ? a.x1 - 2 : a.x0 + 2, a.y)
                     to = Vec2(b.clampX(dir > 0 ? b.x0 + half + 2 : b.x1 - half - 2), b.y)
                 }
-                guard abs(to.x - from.x) <= 420, let sol = JumpSolver.solve(from: from, to: to, config: c) else { continue }
+                // A cabeça não pode passar do teto no ponto mais alto do arco.
+                let ceilingY = w.screen(containing: from).map(\.ceilingY) ?? .infinity
+                let maxApex = ceilingY - w.metrics.height - 1
+                guard abs(to.x - from.x) <= 420,
+                      let sol = JumpSolver.solve(from: from, to: to, config: c, maxApex: maxApex) else { continue }
                 out.append(Edge(from: node(i, from.x), to: node(j, to.x), move: .jump(sol.velocity), cost: sol.flightTime + 0.3))
             }
 

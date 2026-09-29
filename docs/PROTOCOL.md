@@ -50,7 +50,7 @@ ignorados, para permitir extensões compatíveis.
 | corpo → cérebro | `input.summon` | `source` (`hotkey`\|`click`\|`voice`), `text`? |
 | corpo → cérebro | `approval.response` | `requestId`, `decision` (`approve`\|`deny`\|`always`), `scope`? e `expires`? quando `always` |
 | cérebro → corpo | `body.goto` | `target` (`window`\|`point`\|`home`); `pid` + `frame` {x,y,w,h} para janela; `point` {x,y} para ponto |
-| cérebro → corpo | `body.emote` | `clip`, `dot`? (modo do Dot) |
+| cérebro → corpo | `body.emote` | `clip`, `dot`? (modo do Dot), `sticker`? (id de um sticker do pack para segurar) |
 | cérebro → corpo | `bubble.say` | `text`, `durationSec` (0 < d ≤ 30, padrão 4) |
 | cérebro → corpo | `approval.request` | `action`, `target`, `class`, `why`, `timeoutSec` (0 < t ≤ 3600) |
 | cérebro → corpo | `task.update` | `taskId`, `step`, `progress` (0…1), `budgetRemaining`? |

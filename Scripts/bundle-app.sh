@@ -29,6 +29,9 @@ cp "$ROOT/Apps/Glyph/Info.plist" "$APP/Contents/Info.plist"
 if [[ -d "$ROOT/Packs/default" ]]; then
   cp -R "$ROOT/Packs/default" "$APP/Contents/Resources/Pack"
 fi
+if [[ -d "$ROOT/Apps/Glyph/AppIcon.iconset" ]]; then
+  iconutil -c icns "$ROOT/Apps/Glyph/AppIcon.iconset" -o "$APP/Contents/Resources/AppIcon.icns"
+fi
 
 IDENTITY="${GLYPH_SIGN_IDENTITY:--}"
 codesign --force --options runtime \

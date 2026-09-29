@@ -230,16 +230,19 @@ public struct PhysicsSimulator: Sendable {
         }
 
         // Teto: agarra ou bate a cabeça.
-        if s.velocity.y > 0, let screen = w.screen(containing: s.position), let ceil = w.ceiling(for: screen.id) {
+        if let screen = w.screen(containing: s.position), let ceil = w.ceiling(for: screen.id) {
             let head = s.position.y + metrics.height
-            if head >= ceil.y {
+            // Agarra com uma folga pequena: no ápice a velocidade zera e o passo
+            // fixo pode parar um triz abaixo do teto.
+            if c.grabCeiling, head >= ceil.y - 3 {
                 s.position.y = ceil.y - metrics.height
-                if c.grabCeiling {
-                    s.velocity = .zero
-                    s.support = .ceiling(screen: screen.id)
-                    events.append(.grabbedCeiling)
-                    return
-                }
+                s.velocity = .zero
+                s.support = .ceiling(screen: screen.id)
+                events.append(.grabbedCeiling)
+                return
+            }
+            if s.velocity.y > 0, head >= ceil.y {
+                s.position.y = ceil.y - metrics.height
                 s.velocity.y = 0
                 events.append(.bonked)
             }

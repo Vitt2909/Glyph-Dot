@@ -239,3 +239,21 @@ final class EngineTests: XCTestCase {
         XCTAssertLessThan(elapsed / seconds, 0.05, "motor gasta \(elapsed / seconds * 100)% de um núcleo")
     }
 }
+
+final class HeldStickerTests: XCTestCase {
+    func testApprovalHoldsTheCardAndEmoteHoldsSticker() {
+        let (stickers, _) = Sticker.load(pack: Packs.defaultPack)
+        var e = GlyphEngine(world: WorldSnapshot(screens: [TestWorlds.screen]), clips: Packs.library,
+                            stickers: stickers, start: Vec2(700, 90))
+        for _ in 0..<60 { e.advance(by: 1.0 / 60) }
+        XCTAssertNil(e.drawing?.held)
+        e.receive(.approvalRequest(ApprovalRequest(action: "a", target: "b", actionClass: .externalEffect, why: "ok?", timeoutSec: 3)))
+        e.advance(by: 0.3)
+        XCTAssertEqual(e.drawing?.held?.id, "cartao")
+        for _ in 0..<240 { e.advance(by: 1.0 / 60) }
+        e.receive(.bodyEmote(BodyEmote(clip: "idle", sticker: "folha")))
+        XCTAssertEqual(e.drawing?.held?.id, "folha")
+        let d = e.drawing!
+        XCTAssertGreaterThan(StickerShapes.build(d).strokes.count, StickerShapes.build(GlyphDrawing.standing(at: .zero)).strokes.count)
+    }
+}

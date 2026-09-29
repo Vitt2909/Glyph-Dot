@@ -14,10 +14,13 @@ public enum JumpSolver {
     /// tenta um arco mais alto (mais tempo no ar).
     public static let clearances: [Double] = [10, 24, 44, 70, 100]
 
-    public static func solve(from a: Vec2, to b: Vec2, config: PhysicsConfig) -> Solution? {
+    /// - Parameter maxApex: altura máxima que os pés podem atingir sem a cabeça
+    ///   bater no teto (barra de menu). `nil` = sem teto.
+    public static func solve(from a: Vec2, to b: Vec2, config: PhysicsConfig, maxApex: Double? = nil) -> Solution? {
         let g = config.gravity
         for clearance in clearances {
             let apex = max(a.y, b.y) + clearance
+            if let limit = maxApex, apex > limit { return nil }
             let up = apex - a.y, down = apex - b.y
             let vy = (2 * g * up).squareRoot()
             guard vy <= config.maxJumpVy + 1e-9 else { return nil }
