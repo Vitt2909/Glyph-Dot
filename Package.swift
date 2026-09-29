@@ -8,6 +8,7 @@ import PackageDescription
 
 var products: [Product] = [
     .library(name: "GlyphCore", targets: ["GlyphCore"]),
+    .library(name: "GlyphIPC", targets: ["GlyphIPC"]),
     .library(name: "GlyphDaemon", targets: ["GlyphDaemon"]),
     .executable(name: "glyphd", targets: ["glyphd"]),
     .executable(name: "glyph-art", targets: ["glyph-art"]),
@@ -19,13 +20,18 @@ var targets: [Target] = [
         path: "Sources/GlyphCore"
     ),
     .target(
-        name: "GlyphDaemon",
+        name: "GlyphIPC",
         dependencies: ["GlyphCore"],
+        path: "Sources/GlyphIPC"
+    ),
+    .target(
+        name: "GlyphDaemon",
+        dependencies: ["GlyphCore", "GlyphIPC"],
         path: "Sources/GlyphDaemon"
     ),
     .executableTarget(
         name: "glyphd",
-        dependencies: ["GlyphCore", "GlyphDaemon"],
+        dependencies: ["GlyphCore", "GlyphIPC", "GlyphDaemon"],
         path: "Sources/glyphd"
     ),
     .executableTarget(
@@ -38,6 +44,11 @@ var targets: [Target] = [
         dependencies: ["GlyphCore"],
         path: "Tests/GlyphCoreTests"
     ),
+    .testTarget(
+        name: "GlyphDaemonTests",
+        dependencies: ["GlyphCore", "GlyphIPC", "GlyphDaemon"],
+        path: "Tests/GlyphDaemonTests"
+    ),
 ]
 
 #if os(macOS)
@@ -46,7 +57,7 @@ products.append(.executable(name: "Glyph", targets: ["GlyphApp"]))
 targets.append(contentsOf: [
     .target(
         name: "GlyphBody",
-        dependencies: ["GlyphCore"],
+        dependencies: ["GlyphCore", "GlyphIPC"],
         path: "Sources/GlyphBody"
     ),
     .executableTarget(
