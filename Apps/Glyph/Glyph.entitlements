@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  O corpo não pede nenhuma permissão no M1: limites de janela vêm do
+  CGWindowList sem gravação de tela, e o movimento do mouse vem de um
+  monitor global de .mouseMoved. Hardened runtime ligado, sem exceções.
+  Não há App Sandbox porque o overlay precisa ler o CGWindowList de todos os
+  apps; veja docs/adr/0003-app-sem-sandbox.md.
+-->
+<dict>
+</dict>
+</plist>
