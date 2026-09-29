@@ -282,7 +282,7 @@ case "objetivos":
 
 case "quadro":
     let done = DispatchSemaphore(value: 0)
-    Task {
+    Task.detached {
         let tasks = await BoardStore(url: paths.board).tasks
         if tasks.isEmpty { print("quadro vazio") }
         for t in tasks.suffix(30) {
@@ -296,7 +296,7 @@ case "quadro":
 
 case "diario":
     let done = DispatchSemaphore(value: 0)
-    Task {
+    Task.detached {
         let url = await GoalRunner(paths: paths, brain: OfflineBrain(), policy: PolicyStore(policyURL: nil, trustURL: nil),
                                    history: HistoryStore(url: paths.history), board: BoardStore(url: paths.board),
                                    body: NoBody(), log: makeLog(echo: false), goals: { [] }).writeDiary()
