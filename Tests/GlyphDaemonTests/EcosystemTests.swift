@@ -324,6 +324,25 @@ final class EcosystemTests: XCTestCase {
         XCTAssertTrue(again.written.isEmpty)
     }
 
+    func testMalaRejectsSymlinkEscapingCasa() throws {
+        let fm = FileManager.default
+        let source = dir.appendingPathComponent("origem-link")
+        try fm.createDirectory(at: source.appendingPathComponent("memoria"), withIntermediateDirectories: true)
+        try "segredo".write(to: source.appendingPathComponent("memoria/notas.md"), atomically: true, encoding: .utf8)
+        let file = dir.appendingPathComponent("mala-link.json")
+        _ = try Mala.export(casa: source, to: file)
+
+        let casa = dir.appendingPathComponent("casa-link")
+        let outside = dir.appendingPathComponent("fora-link")
+        try fm.createDirectory(at: casa, withIntermediateDirectories: true)
+        try fm.createDirectory(at: outside, withIntermediateDirectories: true)
+        try fm.createSymbolicLink(at: casa.appendingPathComponent("memoria"), withDestinationURL: outside)
+
+        let report = try Mala.importBundle(file, into: casa)
+        XCTAssertEqual(report.skipped, ["memoria/notas.md"])
+        XCTAssertFalse(fm.fileExists(atPath: outside.appendingPathComponent("notas.md").path))
+    }
+
     func testMalaRefusesEscapesAndBadGoals() throws {
         let bundle = """
         {"formato":"glyph-mala/1","criado":"2026-09-29T12:00:00Z","origem":"x","arquivos":{
