@@ -16,20 +16,20 @@ sobre o anterior, com PR de rascunho (nada foi mesclado por mim):
 Cada PR aponta para o branch do marco anterior: mesclados em ordem (#3 → #9),
 a `main` fica com tudo.
 
-`swift test` em Linux: **245 testes** verdes. O corpo (AppKit) é compilado
+`swift test` em Linux: **244 testes** verdes. O corpo (AppKit) é compilado
 pelo CI de macOS; ainda **não foi visto rodando num Mac de verdade**.
 
-## Bug grave encontrado no M6 (vale para M2–M5)
+## Bug grave encontrado no M6 (corrigido de M2 a M6)
 
 `glyphd run` e `glyphd ask` **travavam para sempre** desde o M2: o código de
 topo do `main.swift` roda no MainActor, os comandos criavam um `Task {}`
 (que herda o MainActor) e bloqueavam a thread principal num semáforo
 esperando por ele. Os testes usam o servidor direto, por isso não pegaram.
-Corrigido no commit "glyphd: run e ask não travam mais no MainActor" deste
-branch (troca por `Task.detached`, sem outra mudança) e coberto pelo novo
-`Scripts/fumaca.sh` no CI, que roda o binário de verdade. **Mesclar só até o
-M5 deixa o `glyphd` travado**: mescle a pilha até o M6, ou traga esse commit
-(é isolado; `git cherry-pick` aplica limpo no M2).
+
+Correção (`Task.detached`, sem outra mudança) feita no `feat/m2-cerebro` e
+levada adiante por merge para M3, M4, M5 e M6 (sem reescrever histórico).
+O novo `Scripts/fumaca.sh`, no CI do M6, roda o binário de verdade (ask,
+run e um agente externo) para isso não voltar.
 
 ## Como rodar
 
