@@ -228,13 +228,30 @@ public enum CommandClassifier {
     }
 
     static func classifyHTTP(_ cmd: String, _ a: [String]) -> Verdict {
-        let writes = ["-X", "--request", "-d", "--data", "--data-raw", "--data-binary", "--data-urlencode", "-F",
-                      "--form", "-T", "--upload-file", "--post-data", "--post-file", "--method"]
-        if a.contains(where: { arg in writes.contains { arg == $0 || arg.hasPrefix($0 + "=") } }) {
-            if let i = a.firstIndex(where: { $0 == "-X" || $0 == "--request" }), i + 1 < a.count, a[i + 1].uppercased() == "GET" {
-                // -X GET explícito é leitura
-            } else {
-                return Verdict(.externalEffect, "\(cmd) enviando dados")
+        // Mesmo com -X GET, -d/-F/-T podem enviar dados (inclusive de um arquivo).
+        let shortDataFlags = ["-d", "-F", "-T", "-K"]
+        let longDataFlags = ["--data", "--data-raw", "--data-binary", "--data-urlencode",
+                             "--form", "--form-string", "--upload-file", "--post-data", "--post-file",
+                             "--json", "--url-query", "--config"]
+        if a.contains(where: { arg in
+            shortDataFlags.contains(where: { arg.hasPrefix($0) })
+                || longDataFlags.contains(where: { arg == $0 || arg.hasPrefix($0 + "=") })
+        }) {
+            return Verdict(.externalEffect, "\(cmd) enviando dados")
+        }
+        for (i, arg) in a.enumerated() {
+            if ["-X", "--request", "--method"].contains(arg) {
+                guard i + 1 < a.count, ["GET", "HEAD"].contains(a[i + 1].uppercased()) else {
+                    return Verdict(.externalEffect, "\(cmd) método não seguro")
+                }
+            } else if arg.hasPrefix("-X"), arg != "-X" {
+                guard ["GET", "HEAD"].contains(String(arg.dropFirst(2)).uppercased()) else {
+                    return Verdict(.externalEffect, "\(cmd) método não seguro")
+                }
+            } else if let flag = ["--request=", "--method="].first(where: { arg.hasPrefix($0) }) {
+                guard ["GET", "HEAD"].contains(String(arg.dropFirst(flag.count)).uppercased()) else {
+                    return Verdict(.externalEffect, "\(cmd) método não seguro")
+                }
             }
         }
         if a.contains(where: { $0 == "-o" || $0 == "-O" || $0.hasPrefix("--output") }) || cmd == "wget" {
@@ -245,9 +262,19 @@ public enum CommandClassifier {
 
     static func classifyGH(_ a: [String]) -> Verdict {
         let sub = a.prefix(2).joined(separator: " ")
+        if a.first == "api" {
+            // gh api usa POST implicitamente quando recebe -f/-F/--input.
+            let writeFlags = ["-f", "-F", "-X", "--field", "--raw-field", "--input", "--method"]
+            let sendsData = a.dropFirst().contains { arg in
+                writeFlags.contains(where: { arg == $0 || arg.hasPrefix($0 + "=")
+                    || (["-f", "-F", "-X"].contains($0) && arg.hasPrefix($0)) })
+            }
+            return sendsData ? Verdict(.externalEffect, "gh api enviando dados")
+                             : Verdict(.networkRead, "gh api")
+        }
         if sub.hasPrefix("pr view") || sub.hasPrefix("pr list") || sub.hasPrefix("pr diff") || sub.hasPrefix("pr checks")
             || sub.hasPrefix("issue view") || sub.hasPrefix("issue list") || sub.hasPrefix("run view")
-            || sub.hasPrefix("run list") || sub.hasPrefix("repo view") || sub.hasPrefix("api") && !a.contains("-X") {
+            || sub.hasPrefix("run list") || sub.hasPrefix("repo view") {
             return Verdict(.networkRead, "gh \(sub)")
         }
         if sub.hasPrefix("repo delete") || sub.hasPrefix("release delete") { return Verdict(.destructive, "gh \(sub)") }
