@@ -92,6 +92,20 @@ public enum Mala {
         }.joined(separator: "\n")
     }
 
+    /// Confere cada componente existente; resolver apenas o caminho final não
+    /// detecta um link no diretório pai quando o arquivo ainda não existe.
+    static func isInsideCasa(_ dest: URL, root: URL, fm: FileManager) -> Bool {
+        let base = root.standardizedFileURL.path
+        let path = dest.standardizedFileURL.path
+        guard path.hasPrefix(base + "/") else { return false }
+        var probe = root
+        for part in path.dropFirst(base.count + 1).split(separator: "/") {
+            probe.appendPathComponent(String(part))
+            if (try? fm.destinationOfSymbolicLink(atPath: probe.path)) != nil { return false }
+        }
+        return true
+    }
+
     public static func importBundle(_ file: URL, into casa: URL) throws -> Report {
         let attrs = try FileManager.default.attributesOfItem(atPath: file.path)
         guard let size = attrs[.size] as? Int, size <= maxBytes * 2 else { throw ToolError.failed("mala grande demais") }
@@ -116,8 +130,7 @@ public enum Mala {
             let root = casa.standardizedFileURL.resolvingSymlinksInPath()
             let dest = root.appendingPathComponent(rel).standardizedFileURL
             // Um link simbólico em qualquer componente não pode levar a gravação para fora da casa.
-            guard dest.path.hasPrefix(root.path + "/"),
-                  dest.resolvingSymlinksInPath().path.hasPrefix(root.path + "/") else {
+            guard isInsideCasa(dest, root: root, fm: fm) else {
                 report.skipped.append(rel)
                 continue
             }
@@ -125,7 +138,7 @@ public enum Mala {
             if fm.fileExists(atPath: dest.path) {
                 if (try? Data(contentsOf: dest)) == data { continue }
                 let conflict = URL(fileURLWithPath: dest.path + ".da-mala")
-                guard conflict.resolvingSymlinksInPath().path.hasPrefix(root.path + "/") else {
+                guard isInsideCasa(conflict, root: root, fm: fm) else {
                     report.skipped.append(rel)
                     continue
                 }
