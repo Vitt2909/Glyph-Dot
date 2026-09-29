@@ -88,12 +88,16 @@ public final class BrainLink {
 
     /// Manda o estado do mundo só quando mudou (sem contar a ociosidade fina).
     public func updateWorld(_ w: WorldUpdate) {
-        var comparable = w
-        comparable.idleSeconds = (w.idleSeconds / 30).rounded(.down) * 30
-        var last = lastWorld
-        last?.idleSeconds = ((last?.idleSeconds ?? 0) / 30).rounded(.down) * 30
+        let changed = Self.coarse(w) != lastWorld.map(Self.coarse)
         lastWorld = w
-        if comparable != last { send(.worldUpdate(w)) }
+        if changed { send(.worldUpdate(w)) }
+    }
+
+    /// Ociosidade em degraus de 30 s, para não mandar uma mensagem por segundo.
+    private static func coarse(_ w: WorldUpdate) -> WorldUpdate {
+        var c = w
+        c.idleSeconds = (w.idleSeconds / 30).rounded(.down) * 30
+        return c
     }
 }
 #endif
