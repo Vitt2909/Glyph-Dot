@@ -24,7 +24,7 @@ Branch: `feat/m5-multi-glyph` (empilhado sobre `feat/m4-objetivos`).
 | No máximo 3 especialistas | ✅ `testAtMostThreeSpecialists`, `CompanionTests.testAtMostThreeCompanions` |
 | Visual (assobio, sai do Dot, "terminou?" · "sim." · "não.") | ✅ `testVetoReturnsToBuilderThenApproves` (sequência exata de bolhas), `CompanionTests`; cena em `docs/art/equipe.svg` |
 
-`swift test`: **226 testes** verdes.
+`swift test`: **224 testes** verdes.
 
 ## Decisões tomadas sozinho
 
