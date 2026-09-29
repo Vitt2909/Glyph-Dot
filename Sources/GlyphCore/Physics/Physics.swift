@@ -181,6 +181,14 @@ public struct PhysicsSimulator: Sendable {
             s.lastSurface = kind
             return
         }
+        // A própria janela cresceu por cima dele (maximizar): segura enquanto
+        // ele corre para fora do retângulo dela.
+        if !wasVisible, let id = kind.windowID, let f = w.frames[id],
+           nx > f.minX, nx < f.maxX, s.position.y > f.minY, s.position.y < f.maxY - 1 {
+            s.position.x = nx
+            s.coveredBy = id
+            return
+        }
         // Saiu da borda, ou a plataforma sumiu/moveu: cai.
         s.position.x = nx
         s.support = .air
