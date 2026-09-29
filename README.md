@@ -100,6 +100,7 @@ segura; sem resposta, a resposta é não.
 | Claude (padrão) | `provider: anthropic`, `model: claude-opus-5-5` |
 | OpenAI | `provider: openai`, `model: <modelo>` |
 | Local (Ollama) | `provider: ollama`, `model: qwen3:8b` |
+| Seu agente | `provider: externo`, `comando: [...]` ([protocolo](docs/ECOSYSTEM.md)) |
 | Sem rede | `glyphd run --offline` |
 
 Teste sem corpo: `glyphd ask "que horas são?"`.
@@ -150,6 +151,34 @@ escala para você. Nos chamados, ele pode chamar o **Pesquisador** ou o
 **Designer**. No máximo 3 ao mesmo tempo, cada um com prompt, ferramentas e
 orçamento próprios (`equipe` no `config.yaml`, com cérebro por papel).
 
+### Ecossistema
+
+- **Seu agente como cérebro.** Qualquer programa que fale o `glyph-brain/1`
+  por stdio (VK ou outro) pode pensar pelo Glyph. Ele só propõe; quem age é
+  o `glyphd`, pela mesma política.
+
+  ```yaml
+  cerebro:
+    principal: { provider: externo, nome: vk, comando: [vk, --glyph-brain] }
+  ```
+
+- **Ferramentas MCP.** Servidores MCP por stdio na seção `mcp:`. Toda
+  ferramenta nova é `external_effect` (sempre pede) até você declarar outra
+  classe. `glyphd mcp` mostra o que cada servidor oferece.
+- **Agentes no socket** podem animar o corpo (gesto, fala, ir a um ponto),
+  se você ligar `agentes_externos.corpo`. Nunca pedem aprovação.
+- **Packs da comunidade** em `casa/packs/`: clipes e stickers, só dado,
+  com licença. Não trocam os sinais de segurança. Veja
+  [`docs/PACKS.md`](docs/PACKS.md) e o pack de exemplo, com uma dança:
+
+  <img src="Examples/pack-exemplo/previa/danca.svg" width="120" alt="Glyph dançando (pack de exemplo)">
+
+- **Mala.** `glyphd mala exportar` / `importar` leva objetivos, habilidades,
+  memória, packs e config para outro Mac. A confiança fica: se ganha de novo.
+
+Detalhes em [`docs/ECOSYSTEM.md`](docs/ECOSYSTEM.md). Exemplos de agente em
+[`Examples/agentes/`](Examples/agentes/).
+
 ## Instalação
 
 Ainda não há binário assinado. Para o app abrir sem aviso do Gatekeeper é
@@ -160,18 +189,18 @@ releases, o macOS vai avisar que o desenvolvedor não foi verificado.
 ## Marcos
 
 - [x] **M0 — Fundação:** repositório, licenças, CI, protocolo v0, modo mock, Glyph parado.
-- [ ] **M1 — A criatura muda:** overlay, mundo, física, pathfinding, estilo sticker completo. Sem IA. *(código pronto e testado no Core; falta validar no macOS)*
+- [ ] **M1 — A criatura muda:** overlay, mundo, física, pathfinding, estilo sticker completo. Sem IA. *(testado no Core em Linux e compilado no macOS pelo CI; falta ver rodando num Mac de verdade)*
 - [x] **M2 — Cérebro reativo:** `glyphd` como LaunchAgent, Claude/OpenAI/Ollama, bolhas, `shell` em sandbox e busca na web.
 - [x] **M3 — Autonomia v1:** sensores (terminal, git), intenções, pontuação, escada de confiança, regras "sempre", histórico com desfazer, freio (⌃⌥⌘.).
 - [x] **M4 — Objetivos e turno noturno:** `goals.yaml`, quadro, orçamentos, worktrees `glyph/*`, até 3 abordagens, lições, diário da manhã, casa.
 - [x] **M5 — Multi-Glyph:** supervisor, Builder, Pesquisador, Designer, Auditor com veto (máx. 3).
-- [ ] **M6 — Ecossistema:** agentes externos, packs da comunidade, viagem entre dispositivos.
+- [x] **M6 — Ecossistema:** agente externo como cérebro, MCP, agentes no socket, packs da comunidade, mala entre Macs. *(Glyph andando entre aparelhos e runner remoto: só [proposta](docs/propostas/0001-runner-remoto.md))*
 
 ## Contribuindo
 
 Veja [`CONTRIBUTING.md`](CONTRIBUTING.md). Boas primeiras contribuições: uma
 nova emoção, pose ou sticker em `Packs/default/`
-([formato](docs/ANIMATION.md)).
+([formato](docs/ANIMATION.md)), ou um pack seu ([como](docs/PACKS.md)).
 
 Falhas de segurança: [`docs/SECURITY.md`](docs/SECURITY.md).
 
