@@ -4,6 +4,10 @@ import GlyphIPC
 import GlyphDaemon
 
 // glyphd — o cérebro do Glyph.
+//
+// O código de topo roda no MainActor. Todo trabalho assíncrono aqui usa
+// `Task.detached`: um `Task {}` comum herdaria o MainActor, que fica parado
+// no `wait()` do semáforo, e o comando travaria para sempre.
 
 let usage = """
 uso: glyphd <comando>
@@ -118,7 +122,7 @@ case "run":
         let keepAwake = config.turno_noturno?.manter_acordado ?? false
         let started = DispatchSemaphore(value: 0)
         let box = ErrorBox()
-        Task {
+        Task.detached {
             do {
                 try await server.start()
                 await server.attach(autonomy: autonomy)
@@ -148,7 +152,7 @@ case "run":
         signal(SIGINT, SIG_IGN)
         let stop: @Sendable () -> Void = {
             let done = DispatchSemaphore(value: 0)
-            Task { await server.stop(); done.signal() }
+            Task.detached { await server.stop(); done.signal() }
             done.wait()
             exit(0)
         }
@@ -171,7 +175,7 @@ case "ask":
     let config = loadConfig()
     let log = makeLog(echo: false)
     let done = DispatchSemaphore(value: 0)
-    Task {
+    Task.detached {
         do {
             let agent = AgentLoop(brain: try Runtime.brain(config.cerebro?.principal), tools: Runtime.tools(config))
             let result = try await agent.run(question, cues: TerminalCues(approveAll: yes))
@@ -228,7 +232,7 @@ case "pair":
 case "historico":
     let n = Int(args.first ?? "") ?? 20
     let done = DispatchSemaphore(value: 0)
-    Task {
+    Task.detached {
         for e in await HistoryStore(url: paths.history).recent(n) {
             let when = String(ISO8601.format(e.ts).prefix(16)).replacingOccurrences(of: "T", with: " ")
             let cls = e.actionClass.map { " [\($0.rawValue)]" } ?? ""
@@ -243,7 +247,7 @@ case "desfazer":
     guard let id = args.first else { fail("uso: glyphd desfazer <id>") }
     let config = loadConfig()
     let done = DispatchSemaphore(value: 0)
-    Task {
+    Task.detached {
         let history = HistoryStore(url: paths.history)
         let policy = PolicyStore(policyURL: paths.policy, trustURL: paths.trust)
         guard let e = await history.entry(id) else { print("não achei \(id)"); done.signal(); return }
@@ -264,7 +268,7 @@ case "desfazer":
 
 case "confianca":
     let done = DispatchSemaphore(value: 0)
-    Task {
+    Task.detached {
         let p = await PolicyStore(policyURL: paths.policy, trustURL: paths.trust).policy
         print("níveis: 0 observar · 1 sugerir · 2 agir e avisar · 3 agir em silêncio")
         if p.ladder.records.isEmpty { print("(tudo nos níveis iniciais)") }
@@ -290,7 +294,7 @@ case "objetivos":
 
 case "quadro":
     let done = DispatchSemaphore(value: 0)
-    Task {
+    Task.detached {
         let tasks = await BoardStore(url: paths.board).tasks
         if tasks.isEmpty { print("quadro vazio") }
         for t in tasks.suffix(30) {
@@ -304,7 +308,7 @@ case "quadro":
 
 case "diario":
     let done = DispatchSemaphore(value: 0)
-    Task {
+    Task.detached {
         let url = await GoalRunner(paths: paths, brain: OfflineBrain(), policy: PolicyStore(policyURL: nil, trustURL: nil),
                                    history: HistoryStore(url: paths.history), board: BoardStore(url: paths.board),
                                    body: NoBody(), log: makeLog(echo: false), goals: { [] }).writeDiary()
