@@ -1,0 +1,10 @@
+{
+  "id": "sleep",
+  "fps": 12,
+  "loop": true,
+  "keys": [
+    {"t": 0, "ease": "inOut", "pose": {"root.dy": -16, "torso": 88, "head": 4, "legL.upper": 88, "legL.lower": 0, "legR.upper": 92, "legR.lower": 0, "armL.upper": 86, "armL.lower": 0, "armR.upper": 95, "armR.lower": -5}},
+    {"t": 2.0, "ease": "inOut", "pose": {"root.dy": -15.6, "torso": 87, "head": 6, "legL.upper": 88, "legL.lower": 0, "legR.upper": 92, "legR.lower": 0, "armL.upper": 86, "armL.lower": 0, "armR.upper": 95, "armR.lower": -5}}
+  ],
+  "dot": {"mode": "fade"}
+}

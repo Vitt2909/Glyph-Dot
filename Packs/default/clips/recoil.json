@@ -1,0 +1,9 @@
+{
+  "id": "recoil",
+  "fps": 12,
+  "loop": false,
+  "keys": [
+    {"t": 0, "ease": "out", "pose": {"torso": 14, "root.dy": -2, "armL.upper": 60, "armL.lower": 60, "armR.upper": -60, "armR.lower": -60, "legL.upper": -10, "legR.upper": -20}},
+    {"t": 0.35, "pose": {}}
+  ]
+}

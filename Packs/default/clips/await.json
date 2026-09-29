@@ -1,0 +1,10 @@
+{
+  "id": "await",
+  "fps": 12,
+  "loop": true,
+  "keys": [
+    {"t": 0, "ease": "inOut", "pose": {"armL.upper": 80, "armL.lower": 15, "armR.upper": 75, "armR.lower": 20, "head": -4}},
+    {"t": 1.2, "ease": "inOut", "pose": {"armL.upper": 82, "armL.lower": 12, "armR.upper": 77, "armR.lower": 18, "head": 0}}
+  ],
+  "dot": {"mode": "blink"}
+}

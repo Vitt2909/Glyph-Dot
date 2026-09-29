@@ -1,0 +1,10 @@
+{
+  "id": "stand-up",
+  "fps": 12,
+  "loop": false,
+  "keys": [
+    {"t": 0, "ease": "inOut", "pose": {"root.dy": -10, "legL.upper": 60, "legL.lower": -60, "legR.upper": 55, "legR.lower": -55, "torso": -20}},
+    {"t": 0.35, "ease": "out", "pose": {"stretch": 1.06}},
+    {"t": 0.5, "pose": {}}
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "id": "hang-move",
+  "fps": 12,
+  "loop": true,
+  "keys": [
+    {"t": 0, "pose": {"armL.upper": 175, "armR.upper": -150, "armR.lower": -40, "legL.upper": 15, "legR.upper": -5}},
+    {"t": 0.33, "pose": {"armL.upper": 150, "armL.lower": 40, "armR.upper": -175, "legL.upper": -5, "legR.upper": 15}}
+  ]
+}

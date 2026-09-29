@@ -1,0 +1,10 @@
+{
+  "id": "look",
+  "fps": 12,
+  "loop": true,
+  "keys": [
+    {"t": 0, "ease": "inOut", "pose": {"head": -6}},
+    {"t": 0.8, "ease": "inOut", "pose": {"head": 6}}
+  ],
+  "dot": {"mode": "glance"}
+}

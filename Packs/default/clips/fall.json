@@ -1,0 +1,9 @@
+{
+  "id": "fall",
+  "fps": 12,
+  "loop": true,
+  "keys": [
+    {"t": 0, "ease": "inOut", "pose": {"stretch": 1.05, "armL.upper": 140, "armL.lower": 20, "armR.upper": -120, "armR.lower": -30, "legL.upper": 15, "legR.upper": -10, "legR.lower": -20}},
+    {"t": 0.17, "ease": "inOut", "pose": {"stretch": 1.05, "armL.upper": 120, "armL.lower": 30, "armR.upper": -140, "armR.lower": -20, "legL.upper": 10, "legL.lower": -20, "legR.upper": -15}}
+  ]
+}

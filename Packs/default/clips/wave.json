@@ -1,0 +1,12 @@
+{
+  "id": "wave",
+  "fps": 12,
+  "loop": false,
+  "keys": [
+    {"t": 0, "ease": "out", "pose": {"armR.upper": -20, "armR.lower": -10}},
+    {"t": 0.25, "ease": "inOut", "pose": {"armR.upper": -150, "armR.lower": -30}},
+    {"t": 0.5, "ease": "inOut", "pose": {"armR.upper": -150, "armR.lower": 20}},
+    {"t": 0.75, "ease": "in", "pose": {"armR.upper": -20, "armR.lower": -10}}
+  ],
+  "dot": {"mode": "pulse", "speed": 1.5}
+}

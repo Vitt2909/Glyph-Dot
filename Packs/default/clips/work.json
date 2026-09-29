@@ -1,0 +1,10 @@
+{
+  "id": "work",
+  "fps": 12,
+  "loop": true,
+  "keys": [
+    {"t": 0, "pose": {"armL.upper": 75, "armL.lower": 20, "armR.upper": 65, "armR.lower": 30, "torso": -6, "head": -6}},
+    {"t": 0.17, "pose": {"armL.upper": 65, "armL.lower": 30, "armR.upper": 75, "armR.lower": 20, "torso": -6, "head": -6}}
+  ],
+  "dot": {"mode": "trail"}
+}
