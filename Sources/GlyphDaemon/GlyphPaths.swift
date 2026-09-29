@@ -22,6 +22,8 @@ public struct GlyphPaths: Sendable, Equatable {
     public var casa: URL { support.appendingPathComponent("casa", isDirectory: true) }
     public var memoria: URL { casa.appendingPathComponent("memoria", isDirectory: true) }
     public var skills: URL { casa.appendingPathComponent("skills", isDirectory: true) }
+    /// Packs da comunidade (uma subpasta por pack).
+    public var packs: URL { casa.appendingPathComponent("packs", isDirectory: true) }
     public var skillDrafts: URL { skills.appendingPathComponent("_rascunhos", isDirectory: true) }
     public var diario: URL { casa.appendingPathComponent("diario", isDirectory: true) }
     public var journal: URL { casa.appendingPathComponent("journal", isDirectory: true) }

@@ -26,7 +26,11 @@ Inclua: versão/commit, passos para reproduzir, impacto esperado.
 | Socket corpo ↔ cérebro | Outro processo se passa pelo cérebro e pede aprovações falsas | Corpo só conecta ao socket do usuário, em pasta 0700; `approval.request` só aceito do `glyphd` |
 | Conteúdo observado → cérebro | **Injeção de prompt** em página, arquivo, saída de terminal | Conteúdo observado entra como `trusted: false`; ações com efeito derivadas dele sempre pedem aprovação; nunca cria objetivo |
 | Cérebro → mundo | Ação irreversível autônoma | Trava por classe em código (docs/AUTONOMY.md); `financial` proibida; `destructive` com dupla confirmação |
-| Ferramentas MCP | Ferramenta desconhecida com efeito colateral | Entra como `external_effect` até ser classificada |
+| Ferramentas MCP | Ferramenta desconhecida com efeito colateral; servidor que mente sobre ser só leitura | Entra como `external_effect` até o **usuário** classificar no `config.yaml`; dicas do servidor ignoradas; saída marcada como conteúdo observado; processo em grupo próprio, morto no timeout |
+| Agente externo (cérebro) | Agente age por conta própria ou pula a aprovação | Ele só propõe chamadas por stdio; quem executa é o `AgentLoop`, pela política; não recebe chaves nem o `raw` de outros provedores |
+| Agente externo (socket) | Agente finge ser o `glyphd` pedindo aprovação | Desligado por padrão; ligado, só `body.emote`/`bubble.say`/`body.goto`; sinais de segurança (clipes `await`/`error`/`alert`, stickers `cartao`/`pausa`/`escudo`, pontos `blink`/`alert`) bloqueados; mudo com o freio |
+| Packs da comunidade | Pack com código, ou que disfarça um pedido de aprovação | Só JSON lido, com limite de tamanho; manifesto e licença obrigatórios; sinais de segurança não podem ser trocados; link simbólico não carrega |
+| Mala (viagem) | Levar confiança para uma máquina onde ela não foi ganha | Escada, regras "sempre", histórico e chaves ficam; importar nunca sobrescreve |
 | `shell` | Escalada, vazamento de ambiente | Sandbox: pastas permitidas, sem `sudo`, ambiente limpo, timeout |
 | Disco | Vazamento de segredos | Chaves no Keychain; logs com redação de segredos; casa em 0700 |
 | Rede | Telemetria | Nenhuma telemetria. Nada sai da máquina sem o usuário escolher um cérebro na nuvem |
@@ -57,5 +61,8 @@ tarefas, todos os Glyphs voltam para casa. (M3)
 | Conteúdo observado marcado; depois dele, até `compute` pede | M2 ✅ (testado) |
 | `web_fetch` bloqueia localhost e redes privadas | M2 ✅ |
 | Keychain, redação de logs | M2 ✅ |
-| Trava de irreversíveis com escada de confiança | M3 |
-| Freio global | M3 |
+| Trava de irreversíveis com escada de confiança | M3 ✅ |
+| Freio global | M3 ✅ |
+| Ferramentas MCP nascem `external_effect` | M6 ✅ (testado com servidor falso) |
+| Agente externo só propõe; agente no socket só anima | M6 ✅ (testado) |
+| Packs: só dado, sinais de segurança protegidos | M6 ✅ (testado) |

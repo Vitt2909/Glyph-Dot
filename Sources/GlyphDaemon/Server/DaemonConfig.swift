@@ -15,6 +15,11 @@ public struct DaemonConfig: Decodable, Sendable, Equatable {
         public var base_url: String?
         /// Fallback de recusa da Anthropic (padrão: ligado).
         public var fallbacks: Bool?
+        /// `provider: externo`: nome e comando do agente (protocolo glyph-brain/1).
+        public var nome: String?
+        public var comando: [String]?
+        /// Segundos de espera por resposta do agente externo.
+        public var timeout: Double?
 
         public init(provider: String, model: String? = nil) {
             self.provider = provider
@@ -82,6 +87,28 @@ public struct DaemonConfig: Decodable, Sendable, Equatable {
         public var manter_acordado: Bool?
     }
     public var corpo: Corpo?
+    public var mcp: [MCPServer]?
+    public var agentes_externos: AgentesExternos?
+
+    /// Um servidor MCP por stdio (M6).
+    public struct MCPServer: Decodable, Sendable, Equatable {
+        public var nome: String
+        public var comando: [String]
+        /// Variáveis para o servidor. `$NOME` copia do ambiente do glyphd
+        /// (assim a chave não precisa ficar escrita aqui).
+        public var env: [String: String]?
+        /// Classe por ferramenta. Sem declaração: `external_effect` (sempre pede).
+        public var classes: [String: ActionClass]?
+        public var timeout: Double?
+        /// `false` desliga sem apagar a configuração.
+        public var ativo: Bool?
+    }
+
+    public struct AgentesExternos: Decodable, Sendable, Equatable {
+        /// Agentes que falam o Glyph Protocol no socket podem animar o corpo
+        /// (gesto, fala, ir até um ponto). Nunca pedem aprovação nem agem.
+        public var corpo: Bool?
+    }
 
     public init() {}
 
@@ -139,6 +166,20 @@ public struct DaemonConfig: Decodable, Sendable, Equatable {
       # Team ID do Developer ID que assina o Glyph.app (vazio = usar pareamento).
       equipe: ""
       pareados: []
+
+    # Servidores MCP (stdio). Toda ferramenta sem classe declarada é
+    # external_effect: o Glyph pede antes de cada uso.
+    # mcp:
+    #   - nome: arquivos
+    #     comando: [npx, -y, "@modelcontextprotocol/server-filesystem", ~/Documentos]
+    #     classes:
+    #       read_text_file: read
+    #       list_directory: read
+
+    agentes_externos:
+      # Agentes que falam o Glyph Protocol no socket podem animar o corpo.
+      # Nunca pedem aprovação nem executam nada. Desligado por padrão.
+      corpo: false
     """
 }
 

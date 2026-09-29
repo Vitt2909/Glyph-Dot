@@ -87,6 +87,19 @@ Classes de ação (`class`): `read`, `compute`, `local_write`, `network_read`,
 Os dois lados mandam `hello` ao conectar. A versão usada é a maior comum
 entre `protocolVersions`. Sem versão comum, a conexão é fechada.
 
+## Agentes externos
+
+Um agente pode conectar no socket do `glyphd` e mandar `hello` com
+`"role":"brain"`. O `glyphd` só aceita com `agentes_externos.corpo: true`
+no config e, mesmo assim, o agente só anima o corpo (`body.emote`,
+`bubble.say`, `body.goto` para ponto ou casa). O `glyphd` repassa essas
+mensagens aos corpos e responde ao agente com um `hello` de papel `body`.
+Detalhes e limites em `docs/ECOSYSTEM.md`.
+
+Um agente que quer **pensar** pelo Glyph (receber a conversa e pedir
+ferramentas) usa outro canal, o `glyph-brain/1` por stdio, também em
+`docs/ECOSYSTEM.md`.
+
 ## Exemplos
 
 ```json

@@ -28,7 +28,8 @@ O Glyph é dividido em três peças.
 | Alvo | Plataforma | Dependências | Conteúdo |
 |---|---|---|---|
 | `GlyphCore` | macOS + **Linux** | Foundation | Protocolo, geometria, física, pathfinding, comportamento, animação (pose, clipe, esqueleto, line boil), motor da criatura |
-| `GlyphDaemon` | macOS + Linux | Core | Caminhos da casa, mock. Sensores, cérebros, executor, memória e diário a partir do M2 |
+| `GlyphIPC` | macOS + Linux | Core | Socket Unix de linhas, credenciais do par, assinatura do corpo |
+| `GlyphDaemon` | macOS + Linux | Core, IPC | Cérebros (inclusive agente externo), ferramentas (inclusive MCP), política, autonomia, objetivos, time, mala |
 | `glyphd` | macOS + Linux | Core, Daemon | Executável do cérebro |
 | `GlyphBody` | macOS | Core, AppKit, QuartzCore | Overlay, leitura do mundo, renderer, input, casa |
 | `GlyphApp` (produto `Glyph`) | macOS | Body | `main.swift` do app |
@@ -74,8 +75,14 @@ esquerdo; a conversão acontece num único lugar, `WorldCoordinates`.
     ├── diario/           # AAAA-MM-DD.md
     ├── journal/          # checkpoints para desfazer
     ├── glyph.sqlite      # tarefas, intenções, histórico, confiança
+    ├── packs/            # packs da comunidade (docs/PACKS.md)
+    ├── worktrees/        # uma pasta por tarefa, ramo glyph/*
+    ├── config.yaml
     ├── goals.yaml
-    └── policy.yaml
+    ├── policy.yaml
+    ├── confianca.json
+    ├── historico.jsonl
+    └── quadro.json
 ```
 
 `glyphd paths` mostra os caminhos. `GLYPH_HOME` muda a raiz.

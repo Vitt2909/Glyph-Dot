@@ -85,7 +85,7 @@ Níveis: **0** observar · **1** sugerir (pede) · **2** agir e avisar ·
   `policy.yaml` (ação, destino, expiração), nunca uma preferência de interface.
 - Pedido de aprovação sem resposta até o timeout → **negar**.
 - Ferramentas MCP desconhecidas entram como `external_effect` até o usuário
-  classificá-las no manifesto.
+  classificá-las no `config.yaml` (as dicas do próprio servidor não contam).
 - Ações com efeito derivadas de intenção `trusted: false` sempre pedem,
   independente do nível.
 
@@ -104,6 +104,8 @@ Níveis: **0** observar · **1** sugerir (pede) · **2** agir e avisar ·
 | Reflexos baratos | `Reflexes`: teste falhou no terminal → repetir a bateria (`compute`) e apontar o arquivo |
 | Histórico com desfazer | `casa/historico.jsonl`; `glyphd historico`, `glyphd desfazer <id>` (desfazer rebaixa a escada) |
 | Freio | `input.brake` (⌃⌥⌘.): cancela o que roda, nega pendências, todos para casa |
+| Ferramenta MCP nova | `MCPTool`: `external_effect` até o usuário declarar a classe em `mcp[].classes` (M6) |
+| Agente externo | `ExternalAgentBrain` só propõe chamadas; o `AgentLoop` decide pela mesma política (M6) |
 
 Onde o Glyph age sozinho: só nos repositórios marcados em `config.yaml`
 (`sensores.repos`). Fora deles, uma falha de teste só faz ele ir olhar o

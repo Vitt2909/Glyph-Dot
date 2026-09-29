@@ -1,3 +1,120 @@
+# Entrega — M0 a M6
+
+Todos os marcos do plano estão implementados, cada um num branch empilhado
+sobre o anterior, com PR de rascunho (nada foi mesclado por mim):
+
+| Marco | Branch | PR |
+|---|---|---|
+| M0 Fundação + M1 A criatura muda | `feat/m1-na-main` (contém `feat/m0-fundacao`) | #3 → `main` |
+| Arte em SVG | `feat/arte-svg` | #4 |
+| M2 Cérebro reativo | `feat/m2-cerebro` | #5 |
+| M3 Autonomia v1 | `feat/m3-autonomia` | #6 |
+| M4 Objetivos e turno noturno | `feat/m4-objetivos` | #7 |
+| M5 Multi-Glyph | `feat/m5-multi-glyph` | #8 |
+| M6 Ecossistema | `feat/m6-ecossistema` | #9 |
+
+Cada PR aponta para o branch do marco anterior: mesclados em ordem (#3 → #9),
+a `main` fica com tudo.
+
+`swift test` em Linux: **244 testes** verdes. O corpo (AppKit) é compilado
+pelo CI de macOS; ainda **não foi visto rodando num Mac de verdade**.
+
+## Bug grave encontrado no M6 (corrigido de M2 a M6)
+
+`glyphd run` e `glyphd ask` **travavam para sempre** desde o M2: o código de
+topo do `main.swift` roda no MainActor, os comandos criavam um `Task {}`
+(que herda o MainActor) e bloqueavam a thread principal num semáforo
+esperando por ele. Os testes usam o servidor direto, por isso não pegaram.
+
+Correção (`Task.detached`, sem outra mudança) feita no `feat/m2-cerebro` e
+levada adiante por merge para M3, M4, M5 e M6 (sem reescrever histórico).
+O novo `Scripts/fumaca.sh`, no CI do M6, roda o binário de verdade (ask,
+run e um agente externo) para isso não voltar.
+
+## Como rodar
+
+```sh
+swift test
+Scripts/fumaca.sh                                    # glyphd de verdade: ask, run, agente externo
+swift run glyphd mock --fast | swift run glyphd validate
+swift run glyph-art                                  # regenera a arte (determinística)
+
+# macOS
+Scripts/bundle-app.sh && open build/Glyph.app        # a criatura (sem cérebro, anda sozinha)
+GLYPH_MOCK=1 build/Glyph.app/Contents/MacOS/Glyph    # com o cérebro falso
+swift build -c release
+.build/release/glyphd config && .build/release/glyphd chave anthropic
+.build/release/glyphd install                        # LaunchAgent
+.build/release/glyphd pair build/Glyph.app           # sem Developer ID
+```
+
+## Decisões que precisam de gente
+
+- **Nome do repositório** tem "Dot" (o plano pede para evitar). Sugestão:
+  renomear antes de publicar.
+- Contato do `CODE_OF_CONDUCT.md` (está `[CONTATO A DEFINIR]`).
+- Ativar o *private vulnerability reporting* do GitHub.
+- Conta Apple Developer (Developer ID + notarização).
+- ADR 0003 (app sem App Sandbox) continua **proposta**.
+- Proposta 0001 (runner remoto) aguarda revisão: mexe na fronteira de
+  confiança.
+- Validar o M1 num Mac: rodar, medir CPU em repouso, gravar o GIF.
+
+---
+
+# Relatório — M6 Ecossistema
+
+Branch: `feat/m6-ecossistema` (empilhado sobre `feat/m5-multi-glyph`).
+
+## Feito
+
+| Área | Onde | O quê |
+|---|---|---|
+| Agente externo como cérebro | `ExternalAgentBrain`, `provider: externo` | O `glyphd` roda o agente por stdio no protocolo `glyph-brain/1` (docs/ECOSYSTEM.md). Ele só propõe chamadas; o `AgentLoop` executa pela política. Não recebe chaves nem o `raw` de outro provedor. Timeout, processo em grupo próprio, sobe de novo se cair |
+| MCP | `MCPClient`, `MCPTool`, seção `mcp:` | Cliente JSON-RPC 2.0 por stdio (`2025-06-18`): `initialize`, `tools/list` com paginação, `tools/call`. Ferramenta nasce `external_effect`; só o config muda a classe; dicas do servidor ignoradas; saída como conteúdo observado; pedidos do servidor recusados; servidor travado é morto |
+| Processo de linhas | `LineProcess` | `posix_spawn` com stdin/stdout em pipe, stderr em `/dev/null`, leitura numa thread, `SIGPIPE` ignorado, sem zumbi |
+| Agentes no socket | `GlyphServer` | `hello` com papel `brain` vira marionetista (só com `agentes_externos.corpo`): gesto, fala (≤ 8 s), ir a ponto/casa; sem aprovação, tarefa, mundo ou sinais de segurança; 5 msgs/2 s; mudo com o freio |
+| Packs da comunidade | `PackManifest`, `PackLoader` (Core) | `pack.json` com licença; só JSON, até 256 KB por arquivo e 200 por pasta; sem link simbólico; não troca `await`/`error`/`alert` nem `cartao`/`pausa`/`escudo`. O corpo carrega `casa/packs/` |
+| Pack de exemplo | `Examples/pack-exemplo/` | "Festa": clipe `danca` e sticker `balao`; prévia animada gerada pelo `glyph-art` |
+| Mala | `Mala`, `glyphd mala` | Exporta objetivos, config (sem pareamento), habilidades (sem rascunhos), memória e packs; importar nunca sobrescreve (`.da-mala`) e recusa `..`, ocultos e objetivos inválidos |
+| Comandos | `glyphd mcp`, `glyphd packs [validar]`, `glyphd mala` | |
+| Exemplos | `Examples/agentes/` | `agente-eco.py` (cérebro por stdio) e `marionete.py` (socket), só biblioteca padrão |
+| CI | `Scripts/fumaca.sh` | Roda o `glyphd` de verdade; valida o pack de exemplo; a prévia do pack entra na checagem de arte |
+
+## Aceite
+
+| Critério | Estado |
+|---|---|
+| Um agente externo (VK ou outro) serve de cérebro | ✅ `testExternalAgentBrainDrivesTheLoopThroughThePolicy` (agente em `sh`), `Scripts/fumaca.sh`, e `glyphd ask` com `Examples/agentes/agente-eco.py` pedindo `web_search` de verdade |
+| Agente externo não pula a trava | ✅ `testExternalAgentCannotSkipApproval` |
+| MCP desconhecido = `external_effect` | ✅ `testMCPToolDefaultsToExternalEffectAndIgnoresServerHints`, `testMCPToolNeedsApprovalInTheAgentLoop` |
+| Packs da comunidade | ✅ `CommunityPackTests` (5 testes) |
+| Viagem entre dispositivos | Parcial: a mala (✅ `testMalaCarriesWhatTheUserWroteAndLeavesTrustBehind`). O Glyph andando entre aparelhos não existe: precisa de um corpo em outro sistema |
+| Runner remoto opcional | Só proposta (`docs/propostas/0001-runner-remoto.md`) |
+
+## Decisões tomadas sozinho
+
+1. **MCP sem SDK** (ADR 0006): o cliente só-de-ferramentas é pequeno.
+2. **Dicas do servidor MCP não contam**: `readOnlyHint` vem de quem não é o
+   usuário.
+3. **Agente externo pensa por stdio, não pelo socket**: o `glyphd` controla o
+   processo e o agente nunca vira executor.
+4. **Agente no socket desligado por padrão** e, ligado, só marionete.
+5. **Sinais de segurança são exclusivos do `glyphd`**, em packs e em agentes.
+6. **A mala não leva confiança**: pastas e repositórios são outros na outra
+   máquina.
+7. **Runner remoto e corpo em outro aparelho viraram proposta**: mexem na
+   fronteira de confiança.
+
+## Faltando
+
+- Corpo em outro aparelho (iPhone, outro Mac) e o Glyph "atravessando".
+- Runner remoto (proposta).
+- Recursos e prompts do MCP (só ferramentas); transporte HTTP do MCP.
+- Loja ou índice de packs; assinatura de packs.
+
+---
+
 # Relatório — M5 Multi-Glyph
 
 Branch: `feat/m5-multi-glyph` (empilhado sobre `feat/m4-objetivos`).

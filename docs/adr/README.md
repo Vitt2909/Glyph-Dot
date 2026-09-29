@@ -14,3 +14,6 @@ protocolo, mudança na trava de irreversíveis ou na escada de confiança
 | 0003 | [App sem App Sandbox](0003-app-sem-sandbox.md) | Proposta |
 | 0004 | [Nenhuma dependência externa até o M2](0004-sem-dependencias-ate-m2.md) | Aceita |
 | 0005 | [M2 sem dependências: HTTP direto, YAML próprio, posix_spawn](0005-cerebro-sem-dependencias.md) | Aceita |
+| 0006 | [Ecossistema sem dependências e com o glyphd como único ator](0006-ecossistema.md) | Aceita |
+
+Propostas que mexem na fronteira de confiança ficam em [`docs/propostas/`](../propostas/).
