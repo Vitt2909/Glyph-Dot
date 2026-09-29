@@ -28,6 +28,10 @@ uso: glyphd <comando>
   objetivos                 valida e lista o casa/goals.yaml
   quadro                    tarefas dos objetivos e tentativas
   diario                    escreve o diário das últimas 24 h agora
+  mcp                       conecta nos servidores MCP do config e lista as ferramentas
+  packs [validar <pasta>]   lista os packs da comunidade (ou valida um pack)
+  mala exportar <arquivo>   leva objetivos, habilidades, memória, packs e config
+  mala importar <arquivo>   traz uma mala (nunca sobrescreve: cria .da-mala)
   status                    diz se o glyphd está respondendo
   paths                     mostra onde fica a casa
   mock [--fast] [--loop]    imprime o roteiro do cérebro falso (JSON por linha)
@@ -47,6 +51,20 @@ func fail(_ message: String) -> Never {
 func loadConfig() -> DaemonConfig {
     do { return try DaemonConfig.load(paths.config) } catch { fail("config.yaml inválido: \(error)") }
 }
+
+/// Espera um trabalho assíncrono no código de linha de comando.
+func blocking<T: Sendable>(_ work: @escaping @Sendable () async -> T) -> T {
+    let box = ResultBox<T>()
+    let done = DispatchSemaphore(value: 0)
+    Task.detached {
+        box.value = await work()
+        done.signal()
+    }
+    done.wait()
+    return box.value!
+}
+
+final class ResultBox<T>: @unchecked Sendable { var value: T? }
 
 func makeLog(echo: Bool = true) -> DaemonLog {
     DaemonLog(dir: paths.logs, redactor: Redactor(secrets: Runtime.knownSecrets()), echo: echo)
@@ -88,6 +106,11 @@ case "run":
         }
         let log = makeLog()
         var tools = Runtime.tools(config)
+        let frozen = config
+        let mcp = blocking { await Runtime.mcpTools(frozen) }
+        for t in mcp.tools { tools.add(t) }
+        for e in mcp.errors { log.log("mcp: \(e)") }
+        if !mcp.tools.isEmpty { log.log("mcp: \(mcp.tools.count) ferramentas de \(mcp.clients.count) servidores") }
         let mainBrain = try Runtime.brain(config.cerebro?.principal)
         var roleBrains: [SpecialistRole: any Brain] = [:]
         for (name, cfg) in config.equipe?.cerebros ?? [:] {
@@ -104,7 +127,8 @@ case "run":
         let agent = AgentLoop(brain: mainBrain, tools: tools)
         let server = GlyphServer(options: .init(socketPath: paths.socket.path, sensorSocketPath: sensorPath,
                                                 verifier: Runtime.verifier(config),
-                                                trustUnverifiedBodies: args.contains("--dev")),
+                                                trustUnverifiedBodies: args.contains("--dev"),
+                                                allowExternalAgents: config.agentes_externos?.corpo ?? false),
                                  agent: agent, log: log, policy: policy, history: history)
         serverBox.server = server
         let repos = config.sensores?.repos ?? []
@@ -152,7 +176,12 @@ case "run":
         signal(SIGINT, SIG_IGN)
         let stop: @Sendable () -> Void = {
             let done = DispatchSemaphore(value: 0)
-            Task.detached { await server.stop(); done.signal() }
+            Task.detached {
+                await server.stop()
+                for c in mcp.clients { await c.stop() }
+                if let ext = mainBrain as? ExternalAgentBrain { await ext.stop() }
+                done.signal()
+            }
             done.wait()
             exit(0)
         }
@@ -177,8 +206,15 @@ case "ask":
     let done = DispatchSemaphore(value: 0)
     Task.detached {
         do {
-            let agent = AgentLoop(brain: try Runtime.brain(config.cerebro?.principal), tools: Runtime.tools(config))
+            var tools = Runtime.tools(config)
+            let mcp = await Runtime.mcpTools(config)
+            for t in mcp.tools { tools.add(t) }
+            for e in mcp.errors { FileHandle.standardError.write(Data("mcp: \(e)\n".utf8)) }
+            let brain = try Runtime.brain(config.cerebro?.principal)
+            let agent = AgentLoop(brain: brain, tools: tools)
             let result = try await agent.run(question, cues: TerminalCues(approveAll: yes))
+            for c in mcp.clients { await c.stop() }
+            if let ext = brain as? ExternalAgentBrain { await ext.stop() }
             for s in result.steps {
                 print("· \(s.tool) [\(s.actionClass.rawValue)] \(s.approved ? "" : "(negado)")")
             }
@@ -316,6 +352,72 @@ case "diario":
         done.signal()
     }
     done.wait()
+
+case "mcp":
+    let config = loadConfig()
+    guard !(config.mcp ?? []).isEmpty else {
+        print("nenhum servidor MCP no config.yaml (seção mcp:)")
+        exit(0)
+    }
+    let r = blocking { await Runtime.mcpTools(config) }
+    for t in r.tools.sorted(by: { $0.spec.name < $1.spec.name }) {
+        let origin = t.declaredClass == nil ? "padrão: sempre pede" : "declarada no config"
+        print("\(t.spec.name)  [\(t.actionClass.rawValue), \(origin)]")
+    }
+    for e in r.errors { print("ERRO \(e)") }
+    blocking { for c in r.clients { await c.stop() } }
+    exit(r.errors.isEmpty ? 0 : 1)
+
+case "packs":
+    if args.first == "validar" {
+        guard args.count >= 2 else { fail("uso: glyphd packs validar <pasta>") }
+        let dir = URL(fileURLWithPath: args[1], isDirectory: true)
+        let p = PackLoader.loadPack(dir, requireManifest: true)
+        var problems = p.errors
+        for id in p.clips.clips.keys where PackLoader.protectedClips.contains(id) {
+            problems.append("clipe \(id) é sinal de segurança: será ignorado")
+        }
+        for id in p.stickers.keys where PackLoader.protectedStickers.contains(id) {
+            problems.append("sticker \(id) é sinal de segurança: será ignorado")
+        }
+        if let m = p.manifest {
+            print("\(m.nome) \(m.versao) por \(m.autor) (\(m.licenca)): \(p.clips.clips.count) clipes, \(p.stickers.count) stickers")
+        }
+        for e in problems { print("· \(e)") }
+        exit(problems.isEmpty && p.manifest != nil ? 0 : 1)
+    }
+    let dirs = PackLoader.communityPacks(in: paths.packs)
+    if dirs.isEmpty { print("nenhum pack da comunidade em \(paths.packs.path)") }
+    for d in dirs {
+        let p = PackLoader.loadPack(d, requireManifest: true)
+        if let m = p.manifest {
+            print("\(m.id): \(m.nome) \(m.versao) por \(m.autor) (\(m.licenca)) — \(p.clips.clips.count) clipes, \(p.stickers.count) stickers")
+        }
+        for e in p.errors { print("  · \(e)") }
+    }
+
+case "mala":
+    guard args.count >= 2 else { fail("uso: glyphd mala exportar|importar <arquivo>") }
+    let file = URL(fileURLWithPath: args[1])
+    do {
+        switch args[0] {
+        case "exportar":
+            let files = try Mala.export(casa: paths.casa, to: file)
+            print("mala pronta: \(file.path) (\(files.count) arquivos)")
+            print("fica em casa: confiança, regras \"sempre\", histórico, diário, quadro e chaves.")
+        case "importar":
+            try paths.ensureCasa()
+            let r = try Mala.importBundle(file, into: paths.casa)
+            for f in r.written { print("+ \(f)") }
+            for f in r.conflicts { print("≠ \(f) (já existia: a versão da mala está em \(f).da-mala)") }
+            for f in r.skipped { print("✗ \(f)") }
+            print("a confiança começa do zero nesta máquina.")
+        default:
+            fail("uso: glyphd mala exportar|importar <arquivo>")
+        }
+    } catch {
+        fail("erro: \(error)")
+    }
 
 case "status":
     do {

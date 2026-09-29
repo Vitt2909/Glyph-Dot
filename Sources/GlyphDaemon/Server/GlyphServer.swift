@@ -16,14 +16,18 @@ public actor GlyphServer {
         /// Deixe corpos não verificados aprovarem. Só para desenvolvimento.
         public var trustUnverifiedBodies: Bool
         public var approvalTimeout: Double
+        /// Agentes externos que falam o Glyph Protocol (papel `brain`) podem
+        /// animar o corpo. Desligado por padrão (M6).
+        public var allowExternalAgents: Bool
 
         public init(socketPath: String, sensorSocketPath: String? = nil, verifier: PeerVerifier = PeerVerifier(),
-                    trustUnverifiedBodies: Bool = false, approvalTimeout: Double = 120) {
+                    trustUnverifiedBodies: Bool = false, approvalTimeout: Double = 120, allowExternalAgents: Bool = false) {
             self.socketPath = socketPath
             self.sensorSocketPath = sensorSocketPath
             self.verifier = verifier
             self.trustUnverifiedBodies = trustUnverifiedBodies
             self.approvalTimeout = approvalTimeout
+            self.allowExternalAgents = allowExternalAgents
         }
     }
 
@@ -32,6 +36,10 @@ public actor GlyphServer {
         let connection: LineConnection
         let trust: PeerTrust
         var world: WorldUpdate?
+        /// `.brain` quando é um agente externo (depois do `hello`).
+        var role: Peer = .body
+        var agentName: String?
+        var recent: [Date] = []
 
         init(id: Int, connection: LineConnection, trust: PeerTrust) {
             self.id = id
@@ -160,10 +168,24 @@ public actor GlyphServer {
             log.log("corpo \(id): linha inválida (\(e))")
             return
         }
+        if case let .hello(h) = env.message, h.role == .brain, session.role == .body {
+            guard options.allowExternalAgents else {
+                log.log("agente externo \(h.name ?? "?") recusado (agentes_externos.corpo: false)")
+                session.connection.close()
+                return
+            }
+            session.role = .brain
+            session.agentName = String((h.name ?? "agente").prefix(40))
+            log.log("agente externo \(session.agentName!) conectado (sessão \(id)): só anima o corpo")
+        }
         do {
-            try ProtocolValidator.validate(env, from: .body)
+            try ProtocolValidator.validate(env, from: session.role)
         } catch {
-            log.log("corpo \(id): \(error)")
+            log.log("sessão \(id): \(error)")
+            return
+        }
+        if session.role == .brain {
+            externalAgentMessage(env.message, session: session)
             return
         }
         switch env.message {
@@ -186,6 +208,45 @@ public actor GlyphServer {
         }
     }
 
+    // MARK: - Agentes externos
+
+    /// Um agente externo só anima o corpo: gesto, fala e ir até um ponto.
+    /// Não pede aprovação, não mexe em tarefa, não vê o mundo, não usa os
+    /// sinais de segurança. Com o freio puxado, fica mudo.
+    private func externalAgentMessage(_ message: Message, session: Session) {
+        switch message {
+        case .hello:
+            send(.hello(Hello(role: .body, capabilities: ["puppet"], name: "glyphd")), to: session)
+            return
+        case .bodyEmote, .bubbleSay, .bodyGoto:
+            break
+        default:
+            log.log("agente \(session.agentName ?? "?"): \(message.kind.rawValue) não é permitido a agente externo")
+            return
+        }
+        guard !paused else { return }
+        let now = Date()
+        session.recent = session.recent.filter { now.timeIntervalSince($0) < 2 } + [now]
+        guard session.recent.count <= 5 else { return }
+        let bodies = sessions.values.filter { $0.role == .body }
+        switch message {
+        case let .bodyEmote(e):
+            guard !PackLoader.protectedClips.contains(e.clip), !PackLoader.protectedStickers.contains(e.sticker ?? ""),
+                  e.dot != .blink, e.dot != .alert else {
+                log.log("agente \(session.agentName ?? "?"): \(e.clip) é sinal de segurança")
+                return
+            }
+            for b in bodies { send(.bodyEmote(BodyEmote(clip: e.clip, dot: e.dot, sticker: e.sticker)), to: b) }
+        case let .bubbleSay(b):
+            for body in bodies { send(.bubbleSay(BubbleSay(text: b.text, durationSec: min(b.durationSec, 8))), to: body) }
+        case let .bodyGoto(g):
+            if case .window = g.target { return } // janelas são do mundo observado: o agente não vê
+            for b in bodies { send(.bodyGoto(g), to: b) }
+        default:
+            break
+        }
+    }
+
     // MARK: - Mensagens
 
     private func send(_ message: Message, to session: Session) {
@@ -195,10 +256,10 @@ public actor GlyphServer {
 
     /// Manda para todos os corpos conectados.
     func broadcast(_ message: Message) {
-        for s in sessions.values { send(message, to: s) }
+        for s in sessions.values where s.role == .body { send(message, to: s) }
     }
 
-    private var primary: Session? { sessions.values.min { $0.id < $1.id } }
+    private var primary: Session? { sessions.values.filter { $0.role == .body }.min { $0.id < $1.id } }
 
     // MARK: - Chamado
 
@@ -328,7 +389,7 @@ public actor GlyphServer {
 
     func requestApproval(_ req: ApprovalRequest, key: TrustKey?) async -> Bool {
         guard !paused else { return false }
-        let approver = sessions.values.first { $0.trust.canApprove || options.trustUnverifiedBodies }
+        let approver = sessions.values.first { $0.role == .body && ($0.trust.canApprove || options.trustUnverifiedBodies) }
         guard let approver else {
             log.log("aprovação negada: nenhum corpo verificado conectado (\(req.action) \(req.target))")
             return false

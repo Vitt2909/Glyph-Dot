@@ -8,7 +8,7 @@ public enum Runtime {
         case unknownProvider(String)
         public var description: String {
             switch self {
-            case let .unknownProvider(p): return "provedor desconhecido: \(p) (use anthropic, openai, ollama ou offline)"
+            case let .unknownProvider(p): return "provedor desconhecido: \(p) (use anthropic, openai, ollama, externo ou offline)"
             }
         }
     }
@@ -31,6 +31,12 @@ public enum Runtime {
                                host: c.host.flatMap(URL.init(string:)) ?? URL(string: "http://127.0.0.1:11434")!)
         case "offline", "mock":
             return OfflineBrain()
+        case "externo", "external", "agente":
+            guard let cmd = c.comando, !cmd.isEmpty else {
+                throw Setup.unknownProvider("externo sem comando (defina cerebro.principal.comando)")
+            }
+            return ExternalAgentBrain(name: c.nome ?? (cmd[0] as NSString).lastPathComponent, command: expandCommand(cmd),
+                                      environment: ShellTool.cleanEnvironment(), timeout: c.timeout ?? 300)
         default:
             throw Setup.unknownProvider(c.provider)
         }
@@ -56,6 +62,52 @@ public enum Runtime {
         reg.add(WebFetchTool())
         reg.add(OpenTool())
         return reg
+    }
+
+    /// Conecta nos servidores MCP e lista as ferramentas. Servidor que falha
+    /// não derruba os outros: vira uma linha em `errors`.
+    public static func mcpTools(_ cfg: DaemonConfig, environment: [String: String] = ProcessInfo.processInfo.environment)
+        async -> (tools: [MCPTool], clients: [MCPClient], errors: [String]) {
+        var tools: [MCPTool] = []
+        var clients: [MCPClient] = []
+        var errors: [String] = []
+        var names = Set<String>()
+        for server in cfg.mcp ?? [] where server.ativo != false {
+            guard !server.comando.isEmpty else {
+                errors.append("\(server.nome): sem comando")
+                continue
+            }
+            guard names.insert(server.nome).inserted else {
+                errors.append("\(server.nome): nome repetido")
+                continue
+            }
+            var env = ShellTool.cleanEnvironment()
+            for (k, v) in server.env ?? [:] {
+                if v.hasPrefix("$") {
+                    if let value = environment[String(v.dropFirst())] { env[k] = value }
+                } else {
+                    env[k] = v
+                }
+            }
+            let client = MCPClient(name: server.nome, command: expandCommand(server.comando),
+                                   environment: env, timeout: server.timeout ?? 60)
+            do {
+                let infos = try await client.listTools()
+                clients.append(client)
+                for info in infos {
+                    tools.append(MCPTool(server: server.nome, info: info, declaredClass: server.classes?[info.name], client: client))
+                }
+            } catch {
+                errors.append("\(server.nome): \(error)")
+                await client.stop()
+            }
+        }
+        return (tools, clients, errors)
+    }
+
+    /// Só `~` vira a pasta do usuário; nomes como `python3` ficam para o PATH.
+    static func expandCommand(_ argv: [String]) -> [String] {
+        argv.map { $0 == "~" || $0.hasPrefix("~/") ? ShellTool.expand($0) : $0 }
     }
 
     public static func verifier(_ cfg: DaemonConfig) -> PeerVerifier {
