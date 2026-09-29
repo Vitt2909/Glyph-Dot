@@ -28,11 +28,20 @@ final class PackTests: XCTestCase {
         for id in needed { XCTAssertNotNil(Packs.library[id], id) }
     }
 
-    func testWaveMatchesThePlan() {
+    func testWaveFollowsThePlanFormat() {
         let wave = Packs.library["wave"]!
         XCTAssertEqual(wave.keys.map(\.t), [0, 0.25, 0.5, 0.75])
-        XCTAssertEqual(wave.keys[1].pose["armR.upper"], -150)
         XCTAssertEqual(wave.dot, ClipDot(mode: .pulse, speed: 1.5))
+        // No meio do aceno, a mão fica acima do ombro e fora da cabeça.
+        let p = ForwardKinematics.solve(wave.sample(at: 0.34))
+        XCTAssertGreaterThan(p.handR.y, p.shoulder.y + 8)
+        XCTAssertGreaterThan(p.handR.distance(to: p.headCenter), p.headRadius + 2)
+    }
+
+    func testHangingHandsReachAboveTheHead() {
+        let p = ForwardKinematics.solve(Packs.library["hang"]!.sample(at: 0))
+        XCTAssertGreaterThan(min(p.handL.y, p.handR.y), p.headCenter.y + p.headRadius - 0.5)
+        XCTAssertGreaterThan(p.handL.distance(to: p.headCenter), p.headRadius + 2)
     }
 }
 

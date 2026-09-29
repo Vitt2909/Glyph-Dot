@@ -3,7 +3,7 @@
   "fps": 12,
   "loop": true,
   "keys": [
-    {"t": 0, "pose": {"armL.upper": 175, "armR.upper": -150, "armR.lower": -40, "legL.upper": 15, "legR.upper": -5}},
-    {"t": 0.33, "pose": {"armL.upper": 150, "armL.lower": 40, "armR.upper": -175, "legL.upper": -5, "legR.upper": 15}}
+    {"t": 0, "pose": {"armL.upper": 160, "armR.upper": -140, "armR.lower": -30, "legL.upper": 15, "legR.upper": -5, "armL.lower": 0}},
+    {"t": 0.33, "pose": {"armL.upper": 140, "armL.lower": 30, "armR.upper": -160, "legL.upper": -5, "legR.upper": 15, "armR.lower": 0}}
   ]
 }
