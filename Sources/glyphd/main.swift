@@ -4,6 +4,10 @@ import GlyphIPC
 import GlyphDaemon
 
 // glyphd — o cérebro do Glyph.
+//
+// O código de topo roda no MainActor. Todo trabalho assíncrono aqui usa
+// `Task.detached`: um `Task {}` comum herdaria o MainActor, que fica parado
+// no `wait()` do semáforo, e o comando travaria para sempre.
 
 let usage = """
 uso: glyphd <comando>
@@ -83,7 +87,7 @@ case "run":
                                  agent: agent, log: log)
         let started = DispatchSemaphore(value: 0)
         let box = ErrorBox()
-        Task {
+        Task.detached {
             do { try await server.start() } catch { box.error = error }
             started.signal()
         }
@@ -93,7 +97,7 @@ case "run":
         signal(SIGINT, SIG_IGN)
         let stop: @Sendable () -> Void = {
             let done = DispatchSemaphore(value: 0)
-            Task { await server.stop(); done.signal() }
+            Task.detached { await server.stop(); done.signal() }
             done.wait()
             exit(0)
         }
@@ -116,7 +120,7 @@ case "ask":
     let config = loadConfig()
     let log = makeLog(echo: false)
     let done = DispatchSemaphore(value: 0)
-    Task {
+    Task.detached {
         do {
             let agent = AgentLoop(brain: try Runtime.brain(config.cerebro?.principal), tools: Runtime.tools(config))
             let result = try await agent.run(question, cues: TerminalCues(approveAll: yes))
