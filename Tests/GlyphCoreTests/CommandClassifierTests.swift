@@ -62,5 +62,7 @@ final class CommandClassifierTests: XCTestCase {
         XCTAssertEqual(c("frobnicate --now"), .externalEffect, "desconhecido é conservador")
         XCTAssertEqual(c("FOO=1 swift test"), .compute, "atribuição na frente")
         XCTAssertEqual(c("/usr/bin/git status"), .read, "caminho absoluto")
+        XCTAssertEqual(c("./test"), .externalEffect, "script local não é o builtin test")
+        XCTAssertEqual(c("~/bin/deploy.sh"), .externalEffect)
     }
 }
