@@ -1,0 +1,11 @@
+{
+  "id": "walk",
+  "fps": 12,
+  "loop": true,
+  "keys": [
+    {"t": 0, "pose": {"torso": -4, "legL.upper": 24, "legL.lower": -4, "legR.upper": -22, "legR.lower": -18, "armL.upper": -18, "armR.upper": 18}},
+    {"t": 0.125, "pose": {"torso": -4, "root.dy": 1.2, "legL.upper": 2, "legL.lower": -8, "legR.upper": 6, "legR.lower": -35, "armL.upper": 0, "armR.upper": 0}},
+    {"t": 0.25, "pose": {"torso": -4, "legL.upper": -22, "legL.lower": -18, "legR.upper": 24, "legR.lower": -4, "armL.upper": 18, "armR.upper": -18}},
+    {"t": 0.375, "pose": {"torso": -4, "root.dy": 1.2, "legL.upper": 6, "legL.lower": -35, "legR.upper": 2, "legR.lower": -8, "armL.upper": 0, "armR.upper": 0}}
+  ]
+}

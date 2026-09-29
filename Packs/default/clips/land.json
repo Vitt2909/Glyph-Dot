@@ -1,0 +1,10 @@
+{
+  "id": "land",
+  "fps": 12,
+  "loop": false,
+  "keys": [
+    {"t": 0, "ease": "out", "pose": {"root.dy": -3, "legL.upper": 30, "legL.lower": -55, "legR.upper": 25, "legR.lower": -50, "armL.upper": 60, "armR.upper": -60}},
+    {"t": 0.17, "ease": "inOut", "pose": {"root.dy": 0.5, "armL.upper": 30, "armR.upper": -30}},
+    {"t": 0.3, "pose": {}}
+  ]
+}

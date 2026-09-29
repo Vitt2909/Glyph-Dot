@@ -1,0 +1,9 @@
+{
+  "id": "jump",
+  "fps": 12,
+  "loop": false,
+  "keys": [
+    {"t": 0, "ease": "out", "pose": {"stretch": 1.15, "armL.upper": 150, "armL.lower": 10, "armR.upper": -150, "armR.lower": -10, "legL.upper": 10, "legL.lower": -10, "legR.upper": -10, "legR.lower": -5}},
+    {"t": 0.3, "pose": {"stretch": 1.0, "armL.upper": 110, "armL.lower": 20, "armR.upper": -110, "armR.lower": -20, "legL.upper": 45, "legL.lower": -70, "legR.upper": 20, "legR.lower": -50}}
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "id": "sit",
+  "fps": 12,
+  "loop": false,
+  "keys": [
+    {"t": 0, "ease": "inOut", "pose": {}},
+    {"t": 0.5, "pose": {"root.dy": -10, "legL.upper": 85, "legL.lower": -10, "legR.upper": 80, "legR.lower": -5, "torso": 6, "armL.upper": 40, "armR.upper": 20}}
+  ],
+  "dot": {"mode": "fade"}
+}

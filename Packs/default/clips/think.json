@@ -1,0 +1,10 @@
+{
+  "id": "think",
+  "fps": 12,
+  "loop": true,
+  "keys": [
+    {"t": 0, "ease": "inOut", "pose": {"armR.upper": 10, "armR.lower": 150, "armL.upper": -10, "armL.lower": -80, "head": 8}},
+    {"t": 1.0, "ease": "inOut", "pose": {"armR.upper": 12, "armR.lower": 145, "armL.upper": -10, "armL.lower": -80, "head": 4}}
+  ],
+  "dot": {"mode": "orbit"}
+}

@@ -10,7 +10,8 @@ import GlyphCore
 @MainActor
 public final class GlyphView: NSView {
     private let sticker = CALayer()
-    private let paper = CAShapeLayer()     // contorno branco + preenchimento da cabeça
+    private let paperFill = CAShapeLayer() // preenchimento branco da cabeça
+    private let paper = CAShapeLayer()     // contorno branco
     private let ink = CAShapeLayer()       // traço preto
     private let dotPaper = CAShapeLayer()  // borda branca do Dot
     private let dotInk = CAShapeLayer()    // Dot
@@ -28,7 +29,7 @@ public final class GlyphView: NSView {
         wantsLayer = true
         layer = CALayer()
         layer?.backgroundColor = .clear
-        for l in [paper, ink, dotPaper, dotInk] as [CAShapeLayer] {
+        for l in [paperFill, paper, ink, dotPaper, dotInk] as [CAShapeLayer] {
             l.lineCap = .round
             l.lineJoin = .round
             l.actions = ["path": NSNull(), "opacity": NSNull()]
@@ -45,9 +46,19 @@ public final class GlyphView: NSView {
 
     override public var isFlipped: Bool { false }
 
+    // Camadas adicionadas à mão não herdam a escala da tela: sem isto o
+    // traço fica borrado em Retina.
+    override public func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        let scale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
+        for l in [sticker, paperFill, paper, ink, dotPaper, dotInk] as [CALayer] { l.contentsScale = scale }
+    }
+
     private func applyStyle() {
+        paperFill.fillColor = NSColor.white.cgColor
+        paperFill.strokeColor = nil
         paper.strokeColor = NSColor.white.cgColor
-        paper.fillColor = NSColor.white.cgColor
+        paper.fillColor = nil
         paper.lineWidth = style.outlineStrokeWidth
         ink.strokeColor = NSColor.black.cgColor
         ink.fillColor = nil
@@ -79,9 +90,8 @@ public final class GlyphView: NSView {
         let shapes = StickerShapes.build(drawing, style: style)
         let strokePath = CGMutablePath()
         for s in shapes.strokes { addPolyline(s, to: strokePath) }
-        let paperPath = CGMutablePath()
-        paperPath.addPath(strokePath)
-        for f in shapes.fills { addPolyline(f, to: paperPath, close: true) }
+        let fillPath = CGMutablePath()
+        for f in shapes.fills { addPolyline(f, to: fillPath, close: true) }
 
         let dots = CGMutablePath(), dotBorders = CGMutablePath()
         for d in shapes.discs where d.opacity > 0.01 {
@@ -90,7 +100,8 @@ public final class GlyphView: NSView {
             let r = d.radius + style.outlineWidth * 0.6
             dotBorders.addEllipse(in: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r))
         }
-        paper.path = paperPath
+        paperFill.path = fillPath
+        paper.path = strokePath
         ink.path = strokePath
         dotPaper.path = dotBorders
         dotInk.path = dots

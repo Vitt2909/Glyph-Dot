@@ -1,0 +1,9 @@
+{
+  "id": "climb",
+  "fps": 12,
+  "loop": true,
+  "keys": [
+    {"t": 0, "pose": {"armL.upper": 170, "armL.lower": -10, "armR.upper": 150, "armR.lower": 40, "legL.upper": 40, "legL.lower": -80, "legR.upper": 10, "legR.lower": -20}},
+    {"t": 0.25, "pose": {"armL.upper": 150, "armL.lower": 40, "armR.upper": 170, "armR.lower": -10, "legL.upper": 10, "legL.lower": -20, "legR.upper": 40, "legR.lower": -80}}
+  ]
+}

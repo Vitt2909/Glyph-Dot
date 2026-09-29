@@ -1,3 +1,83 @@
+# Relatório — M1 A criatura muda
+
+Branch: `feat/m1-criatura` (sai de `feat/m0-fundacao`). Sem IA nenhuma.
+O relatório do M0 continua abaixo.
+
+## Feito
+
+Tudo que decide alguma coisa mora no **GlyphCore** e é testado em Linux. O
+corpo macOS só lê o sistema, alimenta o motor e desenha.
+
+| Área | Onde | O quê |
+|---|---|---|
+| World Model | `Core/World` | Telas, janelas (da frente para trás), chão = topo do Dock (ou borda), teto = base da barra de menu, casa = notch (ou pílula). Topo de janela só vira plataforma onde está visível (oclusão por ordem Z) e onde cabe o corpo em pé. Laterais visíveis viram paredes escaláveis; bordas de tela seguram. Diff entre snapshots. Conversão CG → AppKit num lugar só (`WorldCoordinates`) |
+| Física | `Core/Physics` | Passo fixo de 1/60 s, gravidade, velocidade terminal, plataformas de mão única, coyote time de 80 ms, escalar e subir no topo, pendurar no teto, ser carregado e arremessado. Janela arrastada leva o Glyph junto; janela que some derruba; janela que cobre (ou a própria que maximiza) segura enquanto ele foge |
+| Pulo resolvido | `JumpSolver` | Arco balístico que alcança o alvo; tenta arcos mais altos se precisar; recusa o que o corpo não alcança |
+| Navegação | `Core/Navigation` | Grafo de segmentos com arestas de andar, cair, pular, escalar, agarrar o teto e soltar; A* com heurística admissível; `PathFollower` vira comandos e pede replanejamento quando o mundo muda |
+| Comportamento | `Core/Behavior` | Locomoção (`stand … carried`), intenções por utilidade com histerese, necessidades (energia, curiosidade, sociabilidade), reações ao cursor (olhar, recuar, acenar após 1 s) |
+| Animação | `Core/Animation` | Formato de clipe do plano, amostragem a 12 fps, easing, validação, IK de dois ossos, respiração, olhar, squash & stretch com overshoot, antecipação de 0,1 s antes do pulo, Dot com os 10 modos, olhos só quando expressam |
+| Motor | `Core/Engine/GlyphEngine` | Junta tudo; aceita mensagens do cérebro (`body.goto`, `body.emote`, `bubble.say`, `approval.request`, `task.update`); pede ao corpo 60/12/6/0 fps |
+| Pack | `Packs/default/clips` | 23 clipes: idle, walk, run, crouch, jump, fall, land, climb, hang, hang-move, carried, wave, think, work, await, alert, error, look, recoil, yawn, sit, sleep, stand-up |
+| Corpo | `GlyphBody` | `SystemWorldReader` (CGWindowList + NSScreen, notch por `safeAreaInsets`), `CursorMonitor` (monitores de `.mouseMoved`, sem permissão), `BodyController` (display link do macOS 14 com taxa pedida pelo motor, pausa em casa, teto de 12 fps em modo de economia) |
+
+## Aceite
+
+| Critério | Estado |
+|---|---|
+| Fechar a janela onde ele está → cai e pousa na de baixo, ou no Dock | ✅ testado (`EngineTests`, `PhysicsTests`) |
+| Arrastar a janela → ele vai junto | ✅ testado |
+| Maximizar → ele corre para não ser empurrado | ✅ testado (a própria janela e outra por cima) |
+| Zero permissões pedidas | ✅ por construção: CGWindowList sem títulos, monitor global só de mouse, entitlements vazios. ⚠️ não verificado num Mac |
+| CPU < 2% em repouso, < 0,5% dormindo, 0 fps oculto | ⚠️ parcial. O motor gasta ~0,03% de um núcleo (release, 10 min simulados em 0,17 s). O motor pede 12 fps em repouso, 6 dormindo e 0 em casa, e o display link pausa. O custo do Core Animation só dá para medir num Mac |
+| O GIF do README | ❌ precisa de um Mac |
+
+`swift test`: **112 testes** verdes em Linux (Swift 6.1.3).
+
+## Não compilado (precisa de macOS)
+
+Tudo em `Sources/GlyphBody/` e `Sources/GlyphApp/`. Pontos de atenção:
+
+- `NSView.displayLink(target:selector:)` (macOS 14) com `@objc` num `NSObject` `@MainActor`.
+- `CGWindowListCopyWindowInfo` convertido com `as? [[String: Any]]`.
+- `auxiliaryTopLeftArea`/`RightArea`: só a largura é usada; a notch é centralizada.
+- Monitores de evento chamam `MainActor.assumeIsolated`.
+- A sombra do adesivo fica na camada que agrupa o desenho, o que força uma
+  passada fora da tela por quadro. Se a CPU em repouso passar de 2%, este é o
+  primeiro suspeito (trocar por `shadowPath` ou por um traço cinza deslocado).
+
+## Decisões tomadas sozinho
+
+1. **Teto andável = pendurado.** A "barra de menu, teto andável" virou uma
+   superfície onde ele anda de mão em mão por baixo; a casa fica nela, sob a
+   notch. Para chegar lá ele escala a borda da tela ou pula de uma janela alta.
+2. **Bordas de tela são escaláveis e sólidas.** Garante que a casa é sempre
+   alcançável.
+3. **Plataforma exige espaço para o corpo em pé.** Janela maximizada não tem
+   topo andável (encostaria na barra de menu).
+4. **Maximizar:** quando a janela onde ele está cresce por cima dele (ou outra
+   cobre o ponto), ele não é levado para o topo novo. Fica "engolido" e corre
+   (320 pt/s) até sair do retângulo; aí cai.
+5. **Andar de um trecho visível para um coberto é sair da borda** (cai).
+   Ficar em pé sobre um trecho coberto só acontece se a cobertura chegou depois.
+6. **Line boil a ~8 Hz** (a cada 3 quadros de 24 Hz), independente do fps de
+   desenho.
+7. **Clique** mostra a bolha local *e* manda `input.summon` ao cérebro.
+8. **Dormir** só no chão: pendurado no teto sem objetivo, ele vai passear.
+9. **Leitura do mundo a 10 Hz por timer**, que também mantém o relógio do
+   motor andando quando o display link está pausado (em casa).
+10. **Pack procurado** em `GLYPH_PACK`, depois em `Glyph.app/Contents/Resources/Pack`,
+    depois subindo a partir do executável (para `swift run Glyph`).
+
+## Faltando no M1
+
+- Validar no Mac: compilar, rodar, medir CPU, gravar o GIF.
+- `AXObserver` opcional para arrasto suave (precisa de Acessibilidade; opt-in).
+- Desenho da casa (porta, cabeça para fora) e do painel da casa (duplo clique
+  hoje só gera o evento `openHome`).
+- Janela de aprovação em forma de cartão (hoje é bolha + pose `await`): é M3.
+
+---
+
 # Relatório — M0 Fundação
 
 Branch: `feat/m0-fundacao`.
