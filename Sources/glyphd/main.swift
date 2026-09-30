@@ -26,6 +26,13 @@ uso: glyphd <comando>
   porque [id]               por que ele fez isso (a última ação, sem id)
   desfazer <id>             desfaz uma ação que tem inversa
   confianca                 escada de confiança e regras "sempre"
+  ensaio <pasta>            ensaia organizar a pasta: mostra o plano, não mexe em nada
+  ensaio ver <id>           mostra um plano
+  ensaio decidir <id> <caso> <pular|mover|manter_ambos>
+  ensaio aplicar <id> [--sim]
+                            aplica o plano (pede confirmação; --sim: sem perguntar)
+  ensaio desfazer <id>      desfaz o plano inteiro
+  ensaios                   lista os planos
   objetivos                 valida e lista o casa/goals.yaml
   quadro                    tarefas dos objetivos e tentativas
   diario                    escreve o diário das últimas 24 h agora
@@ -315,6 +322,73 @@ case "desfazer":
         done.signal()
     }
     done.wait()
+
+case "ensaios":
+    for p in RehearsalStore(paths: paths).list() {
+        print("\(p.id)  \(p.status.rawValue)  \(p.title): \(p.summary)")
+    }
+
+case "ensaio":
+    let store = RehearsalStore(paths: paths)
+    let sub = args.first ?? ""
+    func show(_ p: RehearsalPlan) { p.preview(limit: 60).forEach { print($0) } }
+    do {
+        switch sub {
+        case "ver":
+            guard args.count >= 2 else { fail("uso: glyphd ensaio ver <id>") }
+            show(try store.load(args[1]))
+        case "decidir":
+            guard args.count >= 4, let choice = PlanDecision.Choice(rawValue: args[3]) else {
+                fail("uso: glyphd ensaio decidir <id> <caso> <pular|mover|manter_ambos>")
+            }
+            show(try store.decide(args[1], decision: args[2], choice: choice))
+        case "aplicar":
+            guard args.count >= 2 else { fail("uso: glyphd ensaio aplicar <id> [--sim]") }
+            let plan = try store.load(args[1])
+            show(plan)
+            if !plan.pendingDecisions.isEmpty {
+                print("\(plan.pendingDecisions.count) caso(s) sem decisão ficam como estão.")
+            }
+            if !args.contains("--sim") {
+                FileHandle.standardError.write(Data("aplicar? (s/N) ".utf8))
+                guard readLine()?.lowercased().hasPrefix("s") == true else { fail("nada feito.") }
+            }
+            let id = plan.id
+            let r = try blocking { () -> Result<RehearsalStore.ApplyResult, Error> in
+                do { return .success(try await store.apply(id)) } catch { return .failure(error) }
+            }.get()
+            print(r.text)
+            r.skipped.forEach { print("  - " + $0) }
+            blocking {
+                _ = await HistoryStore(url: paths.history).append(HistoryEntry(
+                    origin: .user, summary: "\(plan.title) (plano \(id))", actionClass: .localWrite, scope: plan.root,
+                    tool: "aplicar_plano", outcome: .done, detail: r.text,
+                    inverse: HistoryEntry.Inverse(tool: "desfazer_plano", input: .object(["plano": .string(id)]), summary: "desfazer o plano \(id)"),
+                    authorization: Authorization(.plan, actionClass: .localWrite, scope: plan.root, at: Date(), ref: id)))
+            }
+        case "desfazer":
+            guard args.count >= 2 else { fail("uso: glyphd ensaio desfazer <id>") }
+            let r = try store.undo(args[1])
+            print(r.text)
+            r.skipped.forEach { print("  - " + $0) }
+            let summary = "desfazer o plano \(args[1])"
+            blocking { _ = await HistoryStore(url: paths.history).append(HistoryEntry(origin: .user, summary: summary, outcome: .undone,
+                                                                                     authorization: Authorization(.request))) }
+        case "":
+            fail("uso: glyphd ensaio <pasta>")
+        default:
+            let config = loadConfig()
+            let scope = RehearsalScope(folders: config.ferramentas?.organizar?.pastas ?? ["~/Downloads"])
+            guard scope.allows(sub) else {
+                fail("só organizo \(scope.folders.map(Explanation.shortPath).joined(separator: ", ")) (ferramentas.organizar.pastas no config.yaml)")
+            }
+            let plan = try store.prepare(folder: sub)
+            show(plan)
+            print("\nnada foi mexido. para aplicar: glyphd ensaio aplicar \(plan.id)")
+        }
+    } catch {
+        fail("\(error)")
+    }
 
 case "confianca":
     let done = DispatchSemaphore(value: 0)

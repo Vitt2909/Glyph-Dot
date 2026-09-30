@@ -315,10 +315,12 @@ public actor GlyphServer {
                 }
                 // O custo em tokens é do chamado inteiro: vai na primeira entrada.
                 let cost = i == 0 && result.usage.total > 0 ? ActionCost(tokens: result.usage.total) : nil
+                let ok = step.approved && step.output?.isError == false
+                let inverse = ok ? loop.tools[step.tool]?.inverse(step.input) : nil
                 await history.append(HistoryEntry(origin: .user, summary: text, actionClass: step.actionClass,
                                                   tool: step.tool, outcome: step.approved ? (step.output?.isError == true ? .failed : .done) : .denied,
                                                   detail: step.output.map { String($0.text.suffix(200)) },
-                                                  authorization: auth, cost: cost))
+                                                  inverse: inverse, authorization: auth, cost: cost))
             }
             log.log("resposta: \(result.answer) (\(result.steps.count) ferramentas, \(result.usage.total) tokens)")
             if let home = session.world?.glyph {

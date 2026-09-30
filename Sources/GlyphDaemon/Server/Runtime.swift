@@ -42,7 +42,8 @@ public enum Runtime {
         }
     }
 
-    public static func tools(_ cfg: DaemonConfig, environment: [String: String] = ProcessInfo.processInfo.environment) -> ToolRegistry {
+    public static func tools(_ cfg: DaemonConfig, environment: [String: String] = ProcessInfo.processInfo.environment,
+                             paths: GlyphPaths? = nil) -> ToolRegistry {
         let shellCfg = cfg.ferramentas?.shell
         let roots = shellCfg?.pastas ?? ["~/dev"]
         var reg = ToolRegistry()
@@ -61,6 +62,11 @@ public enum Runtime {
         reg.add(WebSearchTool(provider: provider))
         reg.add(WebFetchTool())
         reg.add(OpenTool())
+        // Modo ensaio: planeja, mostra, aplica com aprovação, desfaz.
+        let store = RehearsalStore(paths: paths ?? GlyphPaths.standard(environment: environment))
+        reg.add(RehearseTool(store: store, scope: RehearsalScope(folders: cfg.ferramentas?.organizar?.pastas ?? ["~/Downloads"])))
+        reg.add(ApplyPlanTool(store: store))
+        reg.add(UndoPlanTool(store: store))
         return reg
     }
 

@@ -47,6 +47,8 @@ public protocol Tool: Sendable {
     /// Escopo da escada de confiança (pasta, domínio). Padrão: "*".
     func scope(_ input: JSONValue) -> String
     func run(_ input: JSONValue) async throws -> ToolOutput
+    /// Como desfazer esta chamada depois de feita, quando dá (vai para o histórico).
+    func inverse(_ input: JSONValue) -> HistoryEntry.Inverse?
 }
 
 extension Tool {
@@ -55,6 +57,7 @@ extension Tool {
     public func classify(_ input: JSONValue) -> ActionClass { actionClass }
     public func summarize(_ input: JSONValue) -> String { "\(spec.name) \(input)" }
     public func scope(_ input: JSONValue) -> String { "*" }
+    public func inverse(_ input: JSONValue) -> HistoryEntry.Inverse? { nil }
 }
 
 /// Envolve conteúdo observado para o modelo tratá-lo como dado.
