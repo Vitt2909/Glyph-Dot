@@ -67,6 +67,8 @@ struct HomeView: View {
                 .tabItem { Text("Tarefas") }
             FilesTab(title: "Skills", dir: casa.appendingPathComponent("skills"), casa: casa)
                 .tabItem { Text("Skills") }
+            FilesTab(title: "Entregas", dir: casa.appendingPathComponent("entregas"), casa: casa)
+                .tabItem { Text("Entregas") }
             HistoryTab(rows: Self.historyRows(casa), file: casa.appendingPathComponent("historico.jsonl"))
                 .tabItem { Text("Histórico") }
             TextTab(title: "Cérebro", text: Self.read(casa.appendingPathComponent("config.yaml")),

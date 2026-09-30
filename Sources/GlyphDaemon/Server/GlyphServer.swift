@@ -72,6 +72,12 @@ public actor GlyphServer {
     private var currentTask: Task<Void, Never>?
     private var chatHistory: [ChatTurn] = []
     public private(set) var paused = false
+    /// Entregas (ideia 1): o que você soltou sobre o Glyph, por oferta.
+    private var delivery: DeliveryRunner?
+    private var grants: [String: DeliveryGrant] = [:]
+    private var nextOffer = 0
+    /// Tipos cujo conteúdo você já deixou ir para o cérebro na nuvem (nesta sessão).
+    private var deliveryConsent: Set<DeliveredItem.Kind> = []
 
     public init(options: Options, agent: AgentLoop, log: DaemonLog,
                 policy: PolicyStore = PolicyStore(policyURL: nil, trustURL: nil),
@@ -112,6 +118,11 @@ public actor GlyphServer {
     /// Liga os objetivos (M4).
     public func attach(goals: GoalRunner) {
         self.goals = goals
+    }
+
+    /// Liga as entregas (arquivos soltos sobre o Glyph).
+    public func attach(delivery: DeliveryRunner) {
+        self.delivery = delivery
     }
 
     public func attach(task: Task<Void, Never>) {
@@ -197,6 +208,10 @@ public actor GlyphServer {
             await summon(s, session: session)
         case let .inputBrake(b):
             await brake(b.engage)
+        case let .inputDrop(d):
+            offerDelivery(d, session: session)
+        case let .offerChoice(c):
+            await chooseDelivery(c, session: session)
         case let .taskShelf(t):
             if let goals, await goals.shelf(t.taskId, park: t.park) != nil {
                 log.log("tarefa \(t.taskId) \(t.park ? "na prateleira" : "retomada")")
@@ -211,6 +226,86 @@ public actor GlyphServer {
             await resolveApproval(r)
         default:
             break
+        }
+    }
+
+    // MARK: - Entregas
+
+    /// Arquivos soltos sobre o Glyph: segura uma concessão de leitura só
+    /// desses caminhos e oferece ações do tipo certo.
+    private func offerDelivery(_ d: InputDrop, session: Session) {
+        guard delivery != nil else {
+            send(.bubbleSay(BubbleSay(text: "sem casa: não posso ler.")), to: session)
+            return
+        }
+        let items = d.paths.compactMap(DeliveredItem.classify)
+        guard let offer = DeliveryActions.offer(for: items) else {
+            send(.bubbleSay(BubbleSay(text: items.isEmpty ? "não achei esse arquivo." : "não sei o que fazer com isso.")), to: session)
+            return
+        }
+        let kind = items[0].kind
+        let now = Date()
+        grants = grants.filter { $0.value.isValid(at: now) }
+        nextOffer += 1
+        let id = "e\(nextOffer)"
+        grants[id] = DeliveryGrant(offerId: id, items: items.filter { $0.kind == kind }, created: now)
+        log.log("entrega \(id): \(items.count) item(ns), \(kind.rawValue)")
+        send(.offerActions(OfferActions(offerId: id, object: offer.object, title: offer.title,
+                                        actions: offer.actions.map { OfferAction(id: $0.id, label: $0.label, sticker: $0.sticker) },
+                                        timeoutSec: 120)), to: session)
+    }
+
+    private func chooseDelivery(_ c: OfferChoice, session: Session) async {
+        guard let grant = grants.removeValue(forKey: c.offerId) else { return }
+        guard let actionId = c.actionId else { return } // dispensou: a concessão acaba aqui
+        guard grant.isValid() else {
+            send(.bubbleSay(BubbleSay(text: "expirou. me entrega de novo?")), to: session)
+            return
+        }
+        guard let delivery, let action = DeliveryActions.action(actionId),
+              DeliveryActions.offer(for: grant.items)?.actions.contains(action) == true else { return }
+        guard !busy else {
+            grants[c.offerId] = grant
+            send(.bubbleSay(BubbleSay(text: "calma, um de cada vez.")), to: session)
+            return
+        }
+        let kind = grant.items[0].kind
+        let title = DeliveryActions.offer(for: grant.items)?.title ?? "entrega"
+        let cloud = action.usesBrain && DeliveryRunner.leavesMachine(agent.brain)
+        var auth = Authorization(.request, actionClass: cloud ? .networkRead : .read)
+        if cloud, !deliveryConsent.contains(kind) {
+            // O conteúdo vai sair da máquina: a primeira vez por tipo, pergunta.
+            let provider = agent.brain.id.split(separator: ":").first.map(String.init) ?? agent.brain.id
+            let ok = await requestApproval(ApprovalRequest(action: "enviar_conteudo", target: "\(title) → \(provider)",
+                                                           actionClass: .externalEffect,
+                                                           why: "o conteúdo vai para \(provider). pode?", timeoutSec: 60), key: nil)
+            guard ok else {
+                await history.append(HistoryEntry(origin: .user, summary: "entregou \(title): \(action.label)", actionClass: .externalEffect,
+                                                  tool: "entrega", outcome: .denied, detail: "conteúdo não enviado ao cérebro",
+                                                  authorization: Authorization(.refused, actionClass: .externalEffect)))
+                send(.bubbleSay(BubbleSay(text: "ok, não mando.")), to: session)
+                return
+            }
+            deliveryConsent.insert(kind)
+            auth = Authorization(.card, actionClass: .externalEffect, at: Date(), note: "conteúdo para \(provider)")
+        }
+        busy = true
+        defer { busy = false }
+        send(.bodyEmote(BodyEmote(clip: "work", dot: action.usesBrain ? .orbit : .trail)), to: session)
+        let started = Date()
+        let r = await delivery.run(action, grant: grant, brain: agent.brain)
+        await history.append(HistoryEntry(origin: .user, summary: "entregou \(title): \(action.label)",
+                                          actionClass: action.id == "referencia" ? .localWrite : (cloud ? .networkRead : .read),
+                                          scope: grant.items.first.map { Scope.normalize($0.path) }, tool: "entrega",
+                                          outcome: r.failed ? .failed : .done, detail: r.line, authorization: auth,
+                                          cost: ActionCost(seconds: Date().timeIntervalSince(started)), evidence: r.reportPath))
+        send(.bodyEmote(BodyEmote(clip: r.failed ? "error" : "idle", dot: r.failed ? .shrink : .steady)), to: session)
+        if let plan = r.planID {
+            send(.taskUpdate(TaskUpdate(taskId: plan, step: "ensaio pronto", progress: 0.5, object: "pasta", title: "organizar \(title)",
+                                        state: .needsYou, pending: r.line)), to: session)
+        } else {
+            send(.taskUpdate(TaskUpdate(taskId: grant.offerId, step: action.label, progress: 1, object: "envelope",
+                                        title: "\(action.label): \(title)", state: r.failed ? .failed : .done, result: r.line)), to: session)
         }
     }
 

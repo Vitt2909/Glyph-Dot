@@ -65,6 +65,17 @@ public struct MockBrain: Sendable {
             case .always: text = "anotado."
             }
             return [self.envelope(.bubbleSay(BubbleSay(text: text)), now: now)]
+        case let .inputDrop(d):
+            // Entrega de mentira: segura o objeto e oferece ações.
+            let name = (d.paths.first.map { ($0 as NSString).lastPathComponent }) ?? "arquivo"
+            return [self.envelope(.offerActions(OfferActions(offerId: "mock-oferta", object: "folha", title: name, actions: [
+                OfferAction(id: "resumir", label: "resumir", sticker: "folha"),
+                OfferAction(id: "tarefas", label: "tarefas", sticker: "alfinete"),
+            ])), now: now)]
+        case let .offerChoice(c):
+            guard let a = c.actionId else { return [] }
+            return [self.envelope(.taskUpdate(TaskUpdate(taskId: c.offerId, step: a, progress: 1, object: "envelope",
+                                                         title: "(mock) \(a)", state: .done, result: "feito de mentira.")), now: now)]
         default:
             return []
         }

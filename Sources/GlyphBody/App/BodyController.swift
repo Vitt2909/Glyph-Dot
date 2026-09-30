@@ -116,6 +116,8 @@ public final class BodyController: NSObject {
             o.view.onMouseDown = { [weak self] e in self?.mouseDown(e) }
             o.view.onMouseDragged = { [weak self] _ in self?.mouseDragged() }
             o.view.onMouseUp = { [weak self] _ in self?.mouseUp() }
+            o.view.onDragOver = { [weak self] p in self?.engine.acceptsDrop(at: Vec2(p)) ?? false }
+            o.view.onDrop = { [weak self] paths, p in self?.drop(paths, at: p) ?? false }
             return o
         }
         displayLink?.invalidate()
@@ -164,6 +166,13 @@ public final class BodyController: NSObject {
         }
         engine.mouseDown(at: Vec2(NSEvent.mouseLocation))
         wake()
+    }
+
+    private func drop(_ paths: [String], at p: CGPoint) -> Bool {
+        let ok = engine.dropped(paths: paths, at: Vec2(p))
+        drain()
+        wake()
+        return ok
     }
 
     private func mouseDragged() {

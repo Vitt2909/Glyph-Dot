@@ -33,6 +33,7 @@ uso: glyphd <comando>
                             aplica o plano (pede confirmação; --sim: sem perguntar)
   ensaio desfazer <id>      desfaz o plano inteiro
   ensaios                   lista os planos
+  entregas [n]              o que ele fez com arquivos que você soltou nele
   objetivos                 valida e lista o casa/goals.yaml
   quadro                    tarefas dos objetivos e tentativas
   quadro estacionar <id>    guarda a tarefa na prateleira (ninguém mexe nela)
@@ -161,6 +162,7 @@ case "run":
                 try await server.start()
                 await server.attach(autonomy: autonomy)
                 await server.attach(goals: goalRunner)
+                await server.attach(delivery: DeliveryRunner(paths: paths))
                 if teamOn { await goalRunner.setTeam(team) }
                 await server.attach(task: Task {
                     while !Task.isCancelled {
@@ -324,6 +326,16 @@ case "desfazer":
         done.signal()
     }
     done.wait()
+
+case "entregas":
+    let n = Int(args.first ?? "") ?? 10
+    let dir = paths.entregas
+    let files = ((try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []).filter { $0.hasSuffix(".md") }.sorted()
+    if files.isEmpty { print("nenhuma entrega ainda") }
+    for f in files.suffix(n).reversed() {
+        let first = (try? String(contentsOf: dir.appendingPathComponent(f), encoding: .utf8))?.split(separator: "\n").first ?? ""
+        print("\(dir.appendingPathComponent(f).path)\n    \(first.replacingOccurrences(of: "# ", with: ""))")
+    }
 
 case "ensaios":
     for p in RehearsalStore(paths: paths).list() {
