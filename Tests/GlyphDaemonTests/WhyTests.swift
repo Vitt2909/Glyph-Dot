@@ -91,3 +91,25 @@ final class WhyTests: XCTestCase {
         await server.stop()
     }
 }
+
+/// Convivência (ideia 6): um build rodando vira uma dica de presença para o corpo.
+final class PresenceTests: XCTestCase {
+    func testBuildStartAndEndBecomePresenceHints() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("gp-\(UUID().uuidString.prefix(6))")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let path = dir.appendingPathComponent("glyphd.sock").path
+        let server = GlyphServer(options: .init(socketPath: path), agent: AgentLoop(brain: ScriptedBrain(replies: []), tools: ToolRegistry()),
+                                 log: DaemonLog(dir: nil, echo: false))
+        try await server.start()
+        let body = try FakeBody(path: path)
+        body.send(.hello(Hello(role: .body)))
+        XCTAssertTrue(body.waitFor { $0.contains { if case .hello = $0 { return true }; return false } })
+        await server.sensorEvent(SensorEvent(kind: "shell.start", cmd: "ls", cwd: "/tmp"))
+        await server.sensorEvent(SensorEvent(kind: "shell.start", cmd: "swift build", cwd: "/tmp"))
+        await server.sensorEvent(SensorEvent(kind: "shell.exit", cmd: "swift build", code: 0, cwd: "/tmp", duration: 40))
+        XCTAssertTrue(body.waitFor { $0.filter { if case .presenceHint = $0 { return true }; return false }.count == 2 })
+        let hints = body.messages.compactMap { m -> PresenceHint.State? in if case let .presenceHint(h) = m { return h.state }; return nil }
+        XCTAssertEqual(hints, [.build, .clear], "ls não é build")
+        await server.stop()
+    }
+}

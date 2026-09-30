@@ -53,6 +53,8 @@ public enum ProtocolValidator {
                 throw ProtocolError.invalid("ação inválida")
             }
             guard o.timeoutSec > 0, o.timeoutSec <= 3600 else { throw ProtocolError.invalid("timeout fora de 0…3600 s") }
+        case let .presenceHint(h):
+            guard h.untilSec > 0, h.untilSec <= 3600 else { throw ProtocolError.invalid("duração fora de 0…3600 s") }
         case let .offerChoice(c):
             guard !c.offerId.isEmpty, c.offerId.count <= 128, c.actionId.map(isToken) ?? true else { throw ProtocolError.invalid("escolha inválida") }
         case let .worldUpdate(w):

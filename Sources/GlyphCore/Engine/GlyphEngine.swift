@@ -8,6 +8,8 @@ public enum EngineEvent: Sendable, Equatable {
     case openHome
     /// Clique no Glyph segurando o diário: abrir o arquivo.
     case openFile(String)
+    /// A convivência aprendeu algo: o corpo guarda `coexistence` na casa.
+    case preferencesChanged
 }
 
 /// O motor da criatura: junta mundo, física, navegação, comportamento e
@@ -85,6 +87,19 @@ public struct GlyphEngine: Sendable {
     public private(set) var funMode = FunMode()
     /// Preferência de movimento reduzido do sistema: cenas mais curtas.
     public var reducedMotion = false
+
+    // Convivência (ideia 6): só encenação.
+    public var coexistence = Coexistence()
+    /// Relógio de parede, para a hora do dia. Sem ele, nada espontâneo.
+    private var wallClock: Date?
+    private var userIdle = 0.0
+    private var meeting = false
+    private var buildingUntil = -1.0
+    /// A brincadeira que ele começou sozinho (para aprender se você gostou).
+    public private(set) var spontaneous: FunCommand?
+    private var lastSpontaneous = -1e9
+    /// Espaço mínimo entre brincadeiras espontâneas.
+    public static let spontaneousGap = 20.0 * 60
 
     // Animação
     private var baseClip = "idle"
@@ -187,6 +202,20 @@ public struct GlyphEngine: Sendable {
         fullscreen = on
     }
 
+    /// Reunião ou apresentação (app de chamada na frente): vai para casa.
+    public mutating func setMeeting(_ on: Bool) {
+        meeting = on
+    }
+
+    public mutating func setClock(_ d: Date) { wallClock = d }
+
+    /// Segundos desde o último evento do usuário (teclado, mouse).
+    public mutating func setUserIdle(_ s: Double) { userIdle = max(0, s) }
+
+    public var isBuilding: Bool { time < buildingUntil }
+
+    private var hour: Int? { wallClock.map { Calendar.current.component(.hour, from: $0) } }
+
     public mutating func mouseDown(at p: Vec2) {
         guard let b = hitbox, b.contains(p) else { return }
         press = (p, time, body.position - p)
@@ -211,6 +240,11 @@ public struct GlyphEngine: Sendable {
         if body.support == .carried {
             sim.release(&body, throwVelocity: cursor.velocity)
             justDropped = true
+            // Onde você costuma deixá-lo.
+            if let s = world.screen(containing: p), s.frame.width > 0 {
+                coexistence.placed(fraction: (p.x - s.frame.minX) / s.frame.width)
+                events.append(.preferencesChanged)
+            }
             return
         }
         if time - lastClick < 0.35 {
@@ -245,6 +279,12 @@ public struct GlyphEngine: Sendable {
         if let t = carriedTask {
             say(t.line, duration: 8)
             if t.isFinished { tasks.removeAll { $0.id == t.id } } // viu o resultado: larga
+            return
+        }
+        if let c = spontaneous, funMode.scene != nil {
+            // Cortou uma brincadeira que ele começou sozinho: aprende.
+            dismissSpontaneous(c)
+            say("tá bom.", duration: 2)
             return
         }
         if funMode.scene != nil {
@@ -328,6 +368,8 @@ public struct GlyphEngine: Sendable {
             pendingDiary = d.path
             if let s = stickers["diario"] { held = (s, time + 12 * 3600) }
             say("diário pronto.", duration: 6)
+        case let .presenceHint(h):
+            buildingUntil = h.state == .build ? time + h.untilSec : -1
         case let .offerActions(o):
             guard stickers[o.object] != nil, !PackLoader.protectedStickers.contains(o.object) else { break }
             offer = Offer(id: o.offerId, object: o.object, title: o.title,
@@ -430,6 +472,7 @@ public struct GlyphEngine: Sendable {
     public mutating func fun(_ text: String) -> Bool {
         guard let command = FunCommand.parse(text) else { return false }
         if command == .stop {
+            if let c = spontaneous { dismissSpontaneous(c) }
             stopFun()
             say("fim da brincadeira.")
             return true
@@ -440,6 +483,13 @@ public struct GlyphEngine: Sendable {
         }
         // Um pedido explícito tira o Glyph de casa.
         if let t = brainTarget, case .home = t.goal { brainTarget = nil }
+        // Você chamou para brincar: esta hora é de brincadeira. E o que era
+        // espontâneo vira seu.
+        spontaneous = nil
+        if let h = hour {
+            coexistence.userPlayed(hour: h)
+            events.append(.preferencesChanged)
+        }
         if !funMode.isOn { funMode.begin(at: time) }
         var chosen = command
         if command == .surprise {
@@ -495,6 +545,7 @@ public struct GlyphEngine: Sendable {
 
     /// Desliga o modo sem cerimônia (o sinal de verdade fala por si).
     private mutating func stopFun() {
+        spontaneous = nil
         guard funMode.isOn else { return }
         endShow()
         funMode.end()
@@ -519,11 +570,19 @@ public struct GlyphEngine: Sendable {
 
     private mutating func stepFun() {
         guard funMode.isOn else { return }
-        if body.coveredBy != nil || fullscreen {
+        if body.coveredBy != nil || fullscreen || meeting {
             stopFun()
             return
         }
         guard let beat = funMode.current else {
+            if let c = spontaneous {
+                // Foi até o fim sem ser cortada.
+                coexistence.enjoyed(c)
+                events.append(.preferencesChanged)
+                spontaneous = nil
+                funMode.end()
+                return
+            }
             if let u = funMode.until, time >= u {
                 funMode.end()
                 say("fim do recreio.")
@@ -752,7 +811,7 @@ public struct GlyphEngine: Sendable {
             .init(.idle, 0.3),
         ]
         if body.coveredBy != nil { options.append(.init(.flee, 1.0, forced: true)) }
-        if fullscreen { options.append(.init(.home, 0.99, forced: true)) }
+        if fullscreen || meeting { options.append(.init(.home, 0.99, forced: true)) }
         if let t = brainTarget {
             if case .home = t.goal {
                 options.append(.init(.home, 0.95, forced: true))
@@ -776,7 +835,8 @@ public struct GlyphEngine: Sendable {
             if let p = cursor.position, p.distance(to: body.position) < 400 {
                 options.append(.init(.observe(p), 0.15 + needs.sociability * 0.6))
             }
-            let boredom = min((time - idleSince) / 40, 0.4) * needs.energy
+            // Com um build rodando, explorar é bem-vindo.
+            let boredom = min((time - idleSince) / 40, 0.4) * needs.energy + (isBuilding ? 0.25 : 0)
             if case let .wander(x) = intent {
                 options.append(.init(.wander(to: x), 0.45))
             } else {
@@ -787,6 +847,7 @@ public struct GlyphEngine: Sendable {
         let before = intent
         let (now, changed) = picker.pick(options, dt: config.thinkInterval)
         if changed { begin(now, from: before) }
+        maybePlaySpontaneously()
 
         // Não dá para dormir pendurado.
         if case .ceiling = body.support, homeState == .outside, intent == .idle || intent == .sleep {
@@ -820,7 +881,44 @@ public struct GlyphEngine: Sendable {
         }
     }
 
+    /// Às vezes, sem ninguém pedir: só quando a convivência deixa, com o
+    /// Glyph livre, e raramente.
+    private mutating func maybePlaySpontaneously() {
+        guard let now = wallClock, let h = hour, !funMode.isOn, !braked, !fullscreen, !meeting,
+              approval == nil, offer == nil, brainTarget == nil, homeState == .outside,
+              body.support.isGrounded, time - lastSpontaneous >= Self.spontaneousGap,
+              carriedTask?.state != .needsYou else { return }
+        switch intent {
+        case .idle, .wander: break
+        default: return
+        }
+        guard coexistence.mayPlay(hour: h, now: now, userIdle: userIdle, building: isBuilding) else { return }
+        // Em média uma vez a cada ~10 min de oportunidade (build: mais).
+        let chance = config.thinkInterval / (isBuilding ? 240 : 600)
+        guard rng.nextUnit() < chance else { return }
+        let u = rng.nextUnit()
+        guard let c = coexistence.pick(u: u, now: now, available: { self.funScene($0) != nil }),
+              let scene = funScene(c) else { return }
+        lastSpontaneous = time
+        funMode.begin(at: time)
+        funMode.play(scene, at: time)
+        spontaneous = c
+    }
+
+    private mutating func dismissSpontaneous(_ c: FunCommand) {
+        if let now = wallClock { coexistence.dismissed(c, now: now) }
+        events.append(.preferencesChanged)
+        spontaneous = nil
+        stopFun()
+    }
+
     private mutating func pickWanderPoint() -> Vec2 {
+        // O lugar de sempre, às vezes.
+        if let f = coexistence.favoriteSpot, rng.nextUnit() < 0.35,
+           let s = world.screen(containing: body.position),
+           let floor = world.standable.first(where: { $0.kind == .floor(screen: s.id) }) {
+            return Vec2(floor.clampX(s.frame.minX + f * s.frame.width, inset: 20), floor.y)
+        }
         let segs = world.standable.filter { $0.length > 60 }
         guard !segs.isEmpty else { return body.position }
         let total = segs.reduce(0) { $0 + $1.length }

@@ -26,7 +26,9 @@ public final class GlyphAppDelegate: NSObject, NSApplicationDelegate {
             FileHandle.standardError.write(Data("pack: nenhum clipe encontrado; o Glyph vai ficar parado\n".utf8))
         }
 
-        let body = BodyController(clips: clips, stickers: stickers)
+        let casa = PackLocator.communityDir.deletingLastPathComponent()
+        let body = BodyController(clips: clips, stickers: stickers,
+                                  coexistenceFile: casa.appendingPathComponent("convivencia.json"))
         self.body = body
 
         if ProcessInfo.processInfo.environment["GLYPH_MOCK"] == "1" {

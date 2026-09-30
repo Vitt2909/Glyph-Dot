@@ -47,6 +47,7 @@ final class ProtocolTests: XCTestCase {
                                        actions: [OfferAction(id: "resumir", label: "resumir", sticker: "folha")])),
             .offerChoice(OfferChoice(offerId: "o1", actionId: "resumir")),
             .offerChoice(OfferChoice(offerId: "o1", actionId: nil)),
+            .presenceHint(PresenceHint(state: .build, untilSec: 600)),
         ]
         XCTAssertEqual(Set(messages.map(\.kind)), Set(Message.Kind.allCases), "todo tipo precisa de teste")
         for (i, m) in messages.enumerated() {

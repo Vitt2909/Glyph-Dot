@@ -500,6 +500,11 @@ public actor GlyphServer {
 
     public func sensorEvent(_ e: SensorEvent) async {
         guard !paused else { return }
+        // Um build ou teste rodando: o corpo pode explorar (só encenação).
+        if let cmd = e.cmd, BuildCommands.isBuild(cmd) {
+            if e.kind == "shell.start" { broadcast(.presenceHint(PresenceHint(state: .build, untilSec: 900))) }
+            if e.kind == "shell.exit" { broadcast(.presenceHint(PresenceHint(state: .clear, untilSec: 1))) }
+        }
         if let autonomy { await autonomy.handle(e) }
         if let goals { await goals.trigger(e) }
     }

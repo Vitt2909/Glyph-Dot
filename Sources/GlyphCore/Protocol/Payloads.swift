@@ -319,6 +319,20 @@ public struct TaskUpdate: Sendable, Equatable, Codable {
     }
 }
 
+/// Cérebro → corpo: o que está acontecendo no computador, para a encenação
+/// (ex.: um build rodando: ele pode explorar). Nunca muda permissão.
+public struct PresenceHint: Sendable, Equatable, Codable {
+    public enum State: String, Sendable, Codable { case build, clear }
+
+    public var state: State
+    public var untilSec: Double
+
+    public init(state: State, untilSec: Double = 900) {
+        self.state = state
+        self.untilSec = untilSec
+    }
+}
+
 /// Corpo → cérebro: guardar uma tarefa na prateleira da casa, ou retomá-la.
 public struct TaskShelf: Sendable, Equatable, Codable {
     public var taskId: String
