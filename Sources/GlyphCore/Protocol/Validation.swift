@@ -34,6 +34,7 @@ public enum ProtocolValidator {
             guard (0...1).contains(t.progress) else { throw ProtocolError.invalid("progresso fora de 0…1") }
             if let b = t.budgetRemaining, b < 0 { throw ProtocolError.invalid("orçamento negativo") }
             if let o = t.object, !isToken(o) { throw ProtocolError.invalid("objeto inválido") }
+            if let path = t.open, !path.hasPrefix("/") || path.utf8.count > 4096 { throw ProtocolError.invalid("caminho precisa ser absoluto") }
             for text in [t.title, t.pending, t.result].compactMap({ $0 }) where text.count > 500 {
                 throw ProtocolError.invalid("texto da tarefa longo demais")
             }

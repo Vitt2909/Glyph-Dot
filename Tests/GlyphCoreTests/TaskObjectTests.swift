@@ -41,6 +41,15 @@ final class TaskObjectTests: XCTestCase {
                        "clicar no objeto mostra a tarefa, não chama o cérebro")
     }
 
+    func testClickOpensTheTaskFile() {
+        var e = engine()
+        e.receive(.taskUpdate(TaskUpdate(taskId: "projeto-vk", step: "retomar", progress: 0, object: "alfinete", title: "vk",
+                                         state: .needsYou, pending: "vk: falta o timeout", open: "/casa/memoria/projetos/vk.md")))
+        _ = e.drainEvents()
+        click(&e)
+        XCTAssertEqual(e.drainEvents(), [.openFile("/casa/memoria/projetos/vk.md")])
+    }
+
     func testDoneTaskIsDroppedAfterYouSeeIt() {
         var e = engine()
         e.receive(.taskUpdate(TaskUpdate(taskId: "t1", step: "ok", progress: 1, object: "pasta", title: "organizar Downloads",

@@ -17,6 +17,8 @@ public struct TaskObject: Sendable, Equatable {
     public var pending: String?
     public var result: String?
     public var updated: Double
+    /// Arquivo que o clique abre.
+    public var open: String? = nil
 
     /// Uma linha para a bolha, ao clicar no objeto.
     public var line: String {

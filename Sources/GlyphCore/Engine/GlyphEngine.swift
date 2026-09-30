@@ -278,6 +278,7 @@ public struct GlyphEngine: Sendable {
         // O objeto da tarefa: progresso, resultado, pendências.
         if let t = carriedTask {
             say(t.line, duration: 8)
+            if let path = t.open { events.append(.openFile(path)) }
             if t.isFinished { tasks.removeAll { $0.id == t.id } } // viu o resultado: larga
             return
         }
@@ -399,7 +400,7 @@ public struct GlyphEngine: Sendable {
         tasks.removeAll { $0.id == t.taskId }
         guard state != .parked else { return } // foi para a prateleira da casa
         tasks.append(TaskObject(id: t.taskId, object: object, title: t.title ?? "", step: t.step, progress: t.progress,
-                                state: state, pending: t.pending, result: t.result, updated: time))
+                                state: state, pending: t.pending, result: t.result, updated: time, open: t.open))
         if tasks.count > 8 { tasks.removeFirst(tasks.count - 8) }
         if state == .needsYou || state == .done {
             say(tasks.last!.line, duration: 6)

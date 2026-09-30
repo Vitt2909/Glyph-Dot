@@ -78,6 +78,8 @@ public actor GlyphServer {
     private var nextOffer = 0
     /// Tipos cujo conteúdo você já deixou ir para o cérebro na nuvem (nesta sessão).
     private var deliveryConsent: Set<DeliveredItem.Kind> = []
+    /// Marcadores dos projetos (ideia 5).
+    private var projects: ProjectTracker?
 
     public init(options: Options, agent: AgentLoop, log: DaemonLog,
                 policy: PolicyStore = PolicyStore(policyURL: nil, trustURL: nil),
@@ -118,6 +120,11 @@ public actor GlyphServer {
     /// Liga os objetivos (M4).
     public func attach(goals: GoalRunner) {
         self.goals = goals
+    }
+
+    /// Liga a retomada de projetos.
+    public func attach(projects: ProjectTracker) {
+        self.projects = projects
     }
 
     /// Liga as entregas (arquivos soltos sobre o Glyph).
@@ -505,8 +512,25 @@ public actor GlyphServer {
             if e.kind == "shell.start" { broadcast(.presenceHint(PresenceHint(state: .build, untilSec: 900))) }
             if e.kind == "shell.exit" { broadcast(.presenceHint(PresenceHint(state: .clear, untilSec: 1))) }
         }
-        if let autonomy { await autonomy.handle(e) }
+        if let autonomy {
+            for done in await autonomy.handle(e) {
+                // O arquivo:linha que ele apontou vai para o marcador do projeto.
+                if let ev = done.evidence, let scope = done.scope { await projects?.testFailure(in: scope, at: ev) }
+            }
+        }
+        if let projects, let back = await projects.handle(e) {
+            // Voltou a um projeto depois de um tempo: uma linha, e o marcador na mão.
+            let name = (back.project as NSString).lastPathComponent
+            let file = paths(projects).appendingPathComponent(name + ".md").path
+            broadcast(.bubbleSay(BubbleSay(text: back.line, durationSec: 8)))
+            broadcast(.taskUpdate(TaskUpdate(taskId: "projeto-\(name)", step: "retomar", progress: 0, object: "alfinete",
+                                             title: name, state: .needsYou, pending: back.line, open: file)))
+        }
         if let goals { await goals.trigger(e) }
+    }
+
+    private func paths(_ t: ProjectTracker) -> URL {
+        t.paths.memoria.appendingPathComponent("projetos", isDirectory: true)
     }
 
     /// Batimento (a cada 30 s): objetivos agendados.

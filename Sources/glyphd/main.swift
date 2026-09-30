@@ -34,6 +34,13 @@ uso: glyphd <comando>
   ensaio desfazer <id>      desfaz o plano inteiro
   ensaios                   lista os planos
   entregas [n]              o que ele fez com arquivos que você soltou nele
+  memoria [projeto]         onde cada projeto parou (fato · origem · data)
+  memoria nota <projeto> "texto"
+                            anota o que falta (nunca é trocado por fato automático)
+  memoria apagar <projeto> <n>
+                            apaga o fato n
+  memoria esquecer <projeto>
+                            apaga o marcador inteiro
   objetivos                 valida e lista o casa/goals.yaml
   quadro                    tarefas dos objetivos e tentativas
   quadro estacionar <id>    guarda a tarefa na prateleira (ninguém mexe nela)
@@ -163,6 +170,7 @@ case "run":
                 await server.attach(autonomy: autonomy)
                 await server.attach(goals: goalRunner)
                 await server.attach(delivery: DeliveryRunner(paths: paths))
+                await server.attach(projects: ProjectTracker(repos: repos, paths: paths))
                 if teamOn { await goalRunner.setTeam(team) }
                 await server.attach(task: Task {
                     while !Task.isCancelled {
@@ -326,6 +334,50 @@ case "desfazer":
         done.signal()
     }
     done.wait()
+
+case "memoria":
+    let config = loadConfig()
+    let tracker = ProjectTracker(repos: config.sensores?.repos ?? [], paths: paths)
+    let sub = args.first
+    func show(_ m: ProjectMarker) {
+        print("\(m.name)  (\(m.root))")
+        for (i, f) in m.facts.enumerated() { print("  \(i + 1). \(f.kind.rawValue): \(f.text) · \(f.origin)") }
+        if let l = m.resumeLine { print("  → \(l)") }
+    }
+    func find(_ name: String) -> ProjectMarker {
+        let all = blocking { await tracker.all() }
+        guard let m = all.first(where: { $0.name == name }) else {
+            fail("projeto \(name) não está em sensores.repos (\(all.map(\.name).joined(separator: ", ")))")
+        }
+        return m
+    }
+    switch sub {
+    case nil:
+        let all = blocking { await tracker.all() }
+        if all.isEmpty { print("nenhum projeto: marque pastas em sensores.repos no config.yaml") }
+        all.forEach(show)
+    case "nota"?:
+        guard args.count >= 3 else { fail("uso: glyphd memoria nota <projeto> \"texto\"") }
+        let m = find(args[1])
+        let text = args[2...].joined(separator: " ")
+        if let updated = blocking({ await tracker.note(m.name, text) }) { show(updated) }
+    case "apagar"?:
+        guard args.count >= 3, let n = Int(args[2]) else { fail("uso: glyphd memoria apagar <projeto> <n>") }
+        var m = find(args[1])
+        guard n >= 1, n <= m.facts.count else { fail("não há fato \(n)") }
+        m.facts.remove(at: n - 1)
+        let edited = m
+        blocking { await tracker.save(edited) }
+        show(m)
+    case "esquecer"?:
+        guard args.count >= 2 else { fail("uso: glyphd memoria esquecer <projeto>") }
+        let m = find(args[1])
+        let url = paths.memoria.appendingPathComponent("projetos/\(m.name).md")
+        try? FileManager.default.removeItem(at: url)
+        print("esqueci \(m.name).")
+    case let name?:
+        show(find(name))
+    }
 
 case "entregas":
     let n = Int(args.first ?? "") ?? 10

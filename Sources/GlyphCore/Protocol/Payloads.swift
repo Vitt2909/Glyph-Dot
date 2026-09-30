@@ -304,9 +304,11 @@ public struct TaskUpdate: Sendable, Equatable, Codable {
     /// O que falta (e de quem).
     public var pending: String?
     public var result: String?
+    /// Arquivo que um clique no objeto abre (o marcador do projeto, um relatório).
+    public var open: String?
 
     public init(taskId: String, step: String, progress: Double, budgetRemaining: Int? = nil, object: String? = nil,
-                title: String? = nil, state: State? = nil, pending: String? = nil, result: String? = nil) {
+                title: String? = nil, state: State? = nil, pending: String? = nil, result: String? = nil, open: String? = nil) {
         self.taskId = taskId
         self.step = step
         self.progress = progress
@@ -316,6 +318,7 @@ public struct TaskUpdate: Sendable, Equatable, Codable {
         self.state = state
         self.pending = pending
         self.result = result
+        self.open = open
     }
 }
 
