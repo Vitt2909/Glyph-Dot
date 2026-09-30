@@ -93,6 +93,20 @@ public final class BodyController: NSObject {
         wake()
     }
 
+    /// Texto do campo de chamada. Se for um comando do Modo Diversão
+    /// (docs/DIVERSAO.md), o corpo encena e devolve `true`: não vai ao cérebro.
+    public func fun(_ text: String) -> Bool {
+        guard engine.fun(text) else { return false }
+        wake()
+        return true
+    }
+
+    /// Freio global: corta qualquer brincadeira.
+    public func setBrake(_ engaged: Bool) {
+        engine.setBrake(engaged)
+        wake()
+    }
+
     // MARK: - Telas
 
     private func rebuildOverlays() {
@@ -122,6 +136,7 @@ public final class BodyController: NSObject {
         self.fullscreen = fullscreen
         engine.setWorld(snapshot)
         engine.setFullscreen(fullscreen)
+        engine.reducedMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         if Date().timeIntervalSince(lastWorldReport) >= 1 {
             lastWorldReport = Date()
             onWorld?(worldForBrain)

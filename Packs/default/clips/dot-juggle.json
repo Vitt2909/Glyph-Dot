@@ -1,0 +1,10 @@
+{
+  "id": "dot-juggle",
+  "fps": 12,
+  "loop": true,
+  "keys": [
+    {"t": 0, "ease": "inOut", "pose": {"armL.upper": 70, "armL.lower": 80, "armR.upper": -40, "armR.lower": -30, "head": 6}},
+    {"t": 0.4, "ease": "inOut", "pose": {"armL.upper": 40, "armL.lower": 30, "armR.upper": -70, "armR.lower": -80, "head": -6}}
+  ],
+  "dot": {"mode": "orbit", "speed": 1.5}
+}

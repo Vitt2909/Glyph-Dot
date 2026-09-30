@@ -1,0 +1,13 @@
+{
+  "id": "ta-da",
+  "fps": 12,
+  "loop": false,
+  "keys": [
+    {"t": 0, "ease": "out", "pose": {}},
+    {"t": 0.15, "ease": "out", "pose": {"root.dy": -2, "armL.upper": 40, "armR.upper": -40, "stretch": 0.95}},
+    {"t": 0.4, "ease": "inOut", "pose": {"armL.upper": 130, "armL.lower": 10, "armR.upper": -130, "armR.lower": -10, "head": 4, "legL.upper": 20, "legR.upper": -20, "stretch": 1.06}},
+    {"t": 1.0, "ease": "inOut", "pose": {"armL.upper": 128, "armL.lower": 12, "armR.upper": -128, "armR.lower": -12, "head": 4, "legL.upper": 20, "legR.upper": -20}},
+    {"t": 1.2, "pose": {"armL.upper": 125, "armL.lower": 12, "armR.upper": -125, "armR.lower": -12, "head": 3, "legL.upper": 18, "legR.upper": -18}}
+  ],
+  "dot": {"mode": "pulse", "speed": 1}
+}

@@ -1,0 +1,12 @@
+{
+  "id": "bow",
+  "fps": 12,
+  "loop": false,
+  "keys": [
+    {"t": 0, "ease": "out", "pose": {}},
+    {"t": 0.3, "ease": "inOut", "pose": {"torso": -35, "head": -15, "armL.upper": 10, "armL.lower": 20, "armR.upper": -40, "armR.lower": -10}},
+    {"t": 0.7, "ease": "inOut", "pose": {"torso": -35, "head": -15, "armL.upper": 10, "armL.lower": 20, "armR.upper": -40, "armR.lower": -10}},
+    {"t": 1.1, "pose": {}}
+  ],
+  "dot": {"mode": "steady"}
+}

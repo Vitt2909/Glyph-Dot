@@ -1,0 +1,17 @@
+{
+  "id": "robot",
+  "fps": 12,
+  "loop": false,
+  "keys": [
+    {"t": 0, "ease": "step", "pose": {}},
+    {"t": 0.3, "ease": "step", "pose": {"armL.upper": 90, "armL.lower": 90, "armR.upper": -24, "armR.lower": -8}},
+    {"t": 0.8, "ease": "step", "pose": {"armL.upper": 90, "armL.lower": -90, "armR.upper": -90, "armR.lower": -90, "head": -12}},
+    {"t": 1.3, "ease": "step", "pose": {"armL.upper": 0, "armL.lower": 90, "armR.upper": -90, "armR.lower": 90, "head": 12, "legL.upper": 22}},
+    {"t": 2.1, "ease": "in", "pose": {"armL.upper": 0, "armL.lower": 90, "armR.upper": -90, "armR.lower": 90, "head": 12, "legL.upper": 22}},
+    {"t": 2.6, "ease": "step", "pose": {"torso": -16, "head": -30, "armL.upper": 4, "armL.lower": 0, "armR.upper": -4, "armR.lower": 0, "root.dy": -3, "stretch": 0.94}},
+    {"t": 3.1, "ease": "out", "pose": {"torso": -16, "head": -30, "armL.upper": 4, "armL.lower": 0, "armR.upper": -4, "armR.lower": 0, "root.dy": -3, "stretch": 0.94}},
+    {"t": 3.35, "ease": "inOut", "pose": {"head": 4, "stretch": 1.08}},
+    {"t": 3.7, "pose": {}}
+  ],
+  "dot": {"mode": "steady"}
+}

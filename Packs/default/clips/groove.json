@@ -1,0 +1,12 @@
+{
+  "id": "groove",
+  "fps": 12,
+  "loop": true,
+  "keys": [
+    {"t": 0, "ease": "inOut", "pose": {"root.dy": -2, "armL.upper": 140, "armL.lower": 10, "armR.upper": -30, "armR.lower": -40, "torso": 6, "head": 6, "legL.upper": 20, "legL.lower": -20}},
+    {"t": 0.2, "ease": "inOut", "pose": {"armL.upper": 60, "armL.lower": 30, "armR.upper": -60, "armR.lower": -30}},
+    {"t": 0.4, "ease": "inOut", "pose": {"root.dy": -2, "armL.upper": 30, "armL.lower": 40, "armR.upper": -140, "armR.lower": -10, "torso": -6, "head": -6, "legR.upper": -20, "legR.lower": -20}},
+    {"t": 0.6, "ease": "inOut", "pose": {"armL.upper": 60, "armL.lower": 30, "armR.upper": -60, "armR.lower": -30}}
+  ],
+  "dot": {"mode": "pulse", "speed": 2}
+}

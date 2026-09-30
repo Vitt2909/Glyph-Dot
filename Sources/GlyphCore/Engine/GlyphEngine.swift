@@ -75,6 +75,12 @@ public struct GlyphEngine: Sendable {
     private var budgetDots = 0
     private var pendingDiary: String?
     private var fullscreen = false
+    private var braked = false
+
+    // Modo Diversão (docs/DIVERSAO.md)
+    public private(set) var funMode = FunMode()
+    /// Preferência de movimento reduzido do sistema: cenas mais curtas.
+    public var reducedMotion = false
 
     // Animação
     private var baseClip = "idle"
@@ -219,6 +225,11 @@ public struct GlyphEngine: Sendable {
             events.append(.openFile(diary))
             return
         }
+        if funMode.scene != nil {
+            // Clicar numa brincadeira: acaba a rodada de estátua ou corta a cena.
+            if funMode.current?.action == .statue { funMode.play(FunCatalog.statueClicked, at: time) } else { endShow() }
+            return
+        }
         if case .sleep = intent {
             // Acorda.
             needs.energy = max(needs.energy, 0.5)
@@ -245,6 +256,7 @@ public struct GlyphEngine: Sendable {
 
     /// Mensagem já validada vinda do cérebro.
     public mutating func receive(_ message: Message) {
+        if funMode.isOn, Self.interruptsFun(message) { stopFun() }
         switch message {
         case let .bubbleSay(b) where b.agentId != nil:
             if let i = companionIndex(b.agentId!) {
@@ -312,6 +324,164 @@ public struct GlyphEngine: Sendable {
 
     private mutating func say(_ text: String, duration: Double = BubbleSay.defaultDuration) {
         bubble = (BubbleSay(text: text).displayText, time + duration)
+    }
+
+    // MARK: - Modo Diversão
+
+    /// Texto do campo de chamada. Se for um comando do Modo Diversão, o motor
+    /// encena aqui mesmo e devolve `true`: o texto não vai ao cérebro.
+    public mutating func fun(_ text: String) -> Bool {
+        guard let command = FunCommand.parse(text) else { return false }
+        if command == .stop {
+            stopFun()
+            say("fim da brincadeira.")
+            return true
+        }
+        if let why = funBlocker {
+            say(why)
+            return true
+        }
+        // Um pedido explícito tira o Glyph de casa.
+        if let t = brainTarget, case .home = t.goal { brainTarget = nil }
+        if !funMode.isOn { funMode.begin(at: time) }
+        var chosen = command
+        if command == .surprise {
+            let available = FunCatalog.surprises.filter { funScene($0) != nil }
+            guard let pick = funMode.pickSurprise(from: available, rng: &rng) else {
+                say("hm. nada pra sortear.")
+                return true
+            }
+            chosen = pick
+        }
+        guard let scene = funScene(chosen) else {
+            say(chosen == .stage ? "sem palco aqui. tenta /danca" : "esse truque não tá no pack.")
+            return true
+        }
+        endShow()
+        oneShot = nil
+        brainDot = nil
+        funMode.play(scene, at: time)
+        return true
+    }
+
+    /// O freio global (o corpo avisa). Com o freio puxado, nada de brincadeira.
+    public mutating func setBrake(_ engaged: Bool) {
+        braked = engaged
+        if engaged { stopFun() }
+    }
+
+    private var funBlocker: String? {
+        if braked { return "freio puxado." }
+        if approval != nil { return "agora não: tem pedido." }
+        if fullscreen || body.coveredBy != nil { return "agora não." }
+        if let t = brainTarget, case .point = t.goal { return "agora não: tô trabalhando." }
+        return nil
+    }
+
+    private func funScene(_ c: FunCommand) -> FunScene? {
+        let stage = c == .stage ? FunStage.find(in: world, near: body.position) : nil
+        return FunCatalog.scene(for: c, clips: clips, stage: stage, reducedMotion: reducedMotion)
+    }
+
+    /// Sinais de verdade que encerram a brincadeira: aprovação, tarefa,
+    /// pedido de movimento do cérebro, erro ou alerta.
+    static func interruptsFun(_ m: Message) -> Bool {
+        switch m {
+        case .approvalRequest, .taskUpdate, .bodyGoto:
+            return true
+        case let .bodyEmote(e) where e.agentId == nil:
+            return PackLoader.protectedClips.contains(e.clip) || e.dot.map { [DotMode.alert, .blink, .shrink].contains($0) } == true
+        default:
+            return false
+        }
+    }
+
+    /// Desliga o modo sem cerimônia (o sinal de verdade fala por si).
+    private mutating func stopFun() {
+        guard funMode.isOn else { return }
+        endShow()
+        funMode.end()
+    }
+
+    /// Corta a cena atual; o modo continua ligado.
+    private mutating func endShow() {
+        if let b = funMode.current, b.isGo, funMode.begun {
+            setGoal(nil)
+            if case .approach = intent { picker.force(.idle) }
+        }
+        funMode.cancelShow()
+    }
+
+    /// Intenção durante a brincadeira: parado no palco ou indo até o ponto.
+    /// Pendurado no teto, segue a vida normal até descer.
+    private var funIntent: BodyIntent? {
+        guard funMode.isOn, !isHanging, brainTarget == nil else { return nil }
+        if let b = funMode.current, funMode.begun, case let .go(p) = b.action { return .approach(p) }
+        return .idle
+    }
+
+    private mutating func stepFun() {
+        guard funMode.isOn else { return }
+        if body.coveredBy != nil || fullscreen {
+            stopFun()
+            return
+        }
+        guard let beat = funMode.current else {
+            if let u = funMode.until, time >= u {
+                funMode.end()
+                say("fim do recreio.")
+            }
+            return
+        }
+        if body.support == .carried {
+            endShow()
+            return
+        }
+        if !funMode.begun {
+            guard homeState == .outside, body.support.isGrounded, pendingJump == nil else {
+                funMode.hold(at: time)
+                return
+            }
+            funMode.markBegun(at: time)
+            if let b = beat.bubble { say(b) }
+            if case let .go(p) = beat.action {
+                picker.force(.approach(p))
+                setGoal(.point(p))
+            }
+        }
+        let t = time - funMode.beatStart
+        switch beat.action {
+        case let .go(p):
+            if goal == nil, follower == nil {
+                if body.position.distance(to: p) < 40 {
+                    funMode.next(at: time)
+                } else {
+                    // Sem caminho até o palco: propõe outra coisa.
+                    endShow()
+                    say("sem palco aqui. tenta /danca")
+                }
+            } else if t > beat.duration {
+                endShow()
+                say("hm.")
+            }
+        case .pose:
+            if t >= beat.duration { funMode.next(at: time) }
+        case .statue:
+            if let c = cursor.position {
+                funMode.cursor(distance: c.distance(to: body.position + Vec2(0, metrics.height / 2)), at: time)
+            }
+            if funMode.giggles >= FunMode.statueLives {
+                funMode.play(FunCatalog.statueLost, at: time)
+            } else if t >= beat.duration {
+                funMode.play(FunCatalog.statueWon, at: time)
+            }
+        }
+    }
+
+    /// Clipe e tempo da batida atual, se houver uma pose de brincadeira.
+    private var funPose: (clip: Clip, t: Double)? {
+        guard let b = funMode.current, funMode.begun, !b.isGo, let c = clips[b.clip] else { return nil }
+        return (c, time - funMode.beatStart)
     }
 
     // MARK: - Multi-Glyph
@@ -401,6 +571,7 @@ public struct GlyphEngine: Sendable {
 
     private mutating func tick(_ dt: Double) {
         time += dt
+        stepFun()
         if let b = bubble, time > b.until { bubble = nil }
         if let a = approval, time > a.until { approval = nil } // sem resposta: o cérebro nega
         if let t = brainTarget, time > t.until { brainTarget = nil }
@@ -420,9 +591,9 @@ public struct GlyphEngine: Sendable {
             cursorReaction = reactor.react(cursor: cursor, body: body.position + Vec2(0, metrics.height / 2),
                                            hitbox: bounds, time: time)
             switch cursorReaction {
-            case .wave where oneShot == nil && intent != .sleep:
+            case .wave where oneShot == nil && intent != .sleep && funMode.scene == nil:
                 oneShot = ("wave", time)
-            case .recoil where oneShot == nil && body.support.isGrounded && intent != .sleep:
+            case .recoil where oneShot == nil && body.support.isGrounded && intent != .sleep && funMode.scene == nil:
                 oneShot = ("recoil", time)
             default: break
             }
@@ -489,21 +660,26 @@ public struct GlyphEngine: Sendable {
         }
         if approval != nil { options.append(.init(.awaitApproval, 0.92, forced: true)) }
 
-        let tired = pow(1 - needs.energy, 2) * 1.3
-        if intent == .sleep {
-            options.append(.init(.sleep, needs.energy < 0.9 ? 0.8 : 0.1))
-        } else if tired > 0.3 {
-            options.append(.init(.sleep, tired))
-        }
-
-        if let p = cursor.position, p.distance(to: body.position) < 400 {
-            options.append(.init(.observe(p), 0.15 + needs.sociability * 0.6))
-        }
-        let boredom = min((time - idleSince) / 40, 0.4) * needs.energy
-        if case let .wander(x) = intent {
-            options.append(.init(.wander(to: x), 0.45))
+        if let f = funIntent {
+            // Brincando: fica no palco, sem sono nem passeio.
+            options.append(.init(f, 0.88, forced: true))
         } else {
-            options.append(.init(.wander(to: 0), 0.15 + boredom + needs.curiosity * 0.2))
+            let tired = pow(1 - needs.energy, 2) * 1.3
+            if intent == .sleep {
+                options.append(.init(.sleep, needs.energy < 0.9 ? 0.8 : 0.1))
+            } else if tired > 0.3 {
+                options.append(.init(.sleep, tired))
+            }
+
+            if let p = cursor.position, p.distance(to: body.position) < 400 {
+                options.append(.init(.observe(p), 0.15 + needs.sociability * 0.6))
+            }
+            let boredom = min((time - idleSince) / 40, 0.4) * needs.energy
+            if case let .wander(x) = intent {
+                options.append(.init(.wander(to: x), 0.45))
+            } else {
+                options.append(.init(.wander(to: 0), 0.15 + boredom + needs.curiosity * 0.2))
+            }
         }
 
         let before = intent
@@ -690,7 +866,9 @@ public struct GlyphEngine: Sendable {
     private func clipFor(_ loco: Locomotion) -> String {
         if pendingJump != nil { return "crouch" }
         switch loco {
-        case .walk: return "walk"
+        case .walk:
+            if let b = funMode.current, b.isGo, clips[b.clip] != nil { return b.clip }
+            return "walk"
         case .run: return "run"
         case .jump: return "jump"
         case .fall: return "fall"
@@ -711,6 +889,9 @@ public struct GlyphEngine: Sendable {
 
     /// Modo do Dot agora.
     private var dotMode: (DotMode, Double) {
+        if let fp = funPose, let mode = funMode.current?.dot ?? fp.clip.dot?.mode {
+            return (mode, fp.clip.dot?.speed ?? 1)
+        }
         if let d = brainDot { return (d.mode, d.speed) }
         if body.coveredBy != nil { return (.alert, 1) }
         if approval != nil { return (.blink, 1) }
@@ -726,7 +907,7 @@ public struct GlyphEngine: Sendable {
         if homeState == .inside { return 0 }
         if sleepStart != nil { return 6 }
         if locomotion != .stand || oneShot != nil || pendingJump != nil || homeState != .outside || abs(spring.value - 1) > 0.01
-            || !companions.isEmpty {
+            || !companions.isEmpty || funMode.scene != nil {
             return 60
         }
         return config.style.poseFPS
@@ -762,7 +943,9 @@ public struct GlyphEngine: Sendable {
         if frame != poseFrame {
             poseFrame = frame
             var pose: Pose
-            if let o = oneShot, let c = clips[o.id], locomotion == .stand || locomotion == .land {
+            if let fp = funPose, locomotion == .stand || locomotion == .land {
+                pose = fp.clip.sample(at: fp.t)
+            } else if let o = oneShot, let c = clips[o.id], locomotion == .stand || locomotion == .land {
                 pose = c.sample(at: time - o.start)
             } else {
                 pose = clips[baseClip]?.sample(at: time - baseClipStart) ?? .rest
@@ -773,12 +956,17 @@ public struct GlyphEngine: Sendable {
 
         var pose = cachedPose
         pose[.stretch] = pose[.stretch] * spring.value
+        if funMode.shaking(at: time) {
+            pose[.head] = pose[.head] + 5 * sin(time * 40)
+            pose[.torso] = pose[.torso] + 2 * sin(time * 40)
+        }
 
         // Olhar: a cabeça segue antes do corpo.
         var look: Vec2? = lookTarget
         if case let .look(p) = cursorReaction { look = p }
         if case let .observe(p) = intent { look = p }
         if case let .approach(p) = intent, follower == nil { look = p }
+        if funMode.scene != nil { look = nil } // no palco, olha para a plateia
         var facing = body.facing
         if let l = look, locomotion == .stand {
             let dir = l - (body.position + Vec2(0, metrics.height))
@@ -790,6 +978,8 @@ public struct GlyphEngine: Sendable {
         }
         pose[.head] = pose[.head] + headAngle
         if locomotion == .stand, abs(body.velocity.x) < 1 { body.facing = facing }
+        // O giro só troca o lado desenhado; o corpo continua virado para onde estava.
+        if locomotion == .stand, funMode.flipped(at: time) { facing = -facing }
 
         let sk = ForwardKinematics.solve(pose, metrics: metrics, facing: facing)
 

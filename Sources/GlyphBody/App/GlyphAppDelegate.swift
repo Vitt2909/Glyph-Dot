@@ -64,6 +64,7 @@ public final class GlyphAppDelegate: NSObject, NSApplicationDelegate {
 
     private func toggleBrake() {
         braked.toggle()
+        body?.setBrake(braked)
         link?.send(.inputBrake(InputBrake(engage: braked)))
         approvalCard.orderOut(nil)
         if braked {
@@ -82,7 +83,11 @@ public final class GlyphAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func summon(_ text: String) {
+        // Modo Diversão: encenado no corpo, nunca chega ao cérebro. Com o
+        // freio puxado, o próprio corpo recusa (e o freio continua puxado).
+        if body?.fun(text) == true { return }
         braked = false
+        body?.setBrake(false)
         if mock != nil {
             sendToMock(.inputSummon(InputSummon(source: .hotkey, text: text)))
             return

@@ -1,0 +1,14 @@
+{
+  "id": "spin",
+  "fps": 12,
+  "loop": false,
+  "keys": [
+    {"t": 0, "ease": "out", "pose": {}},
+    {"t": 0.12, "ease": "out", "pose": {"root.dy": -3, "torso": -8, "armL.upper": 50, "armR.upper": -50, "stretch": 0.92}},
+    {"t": 0.25, "ease": "inOut", "pose": {"armL.upper": 150, "armL.lower": 20, "armR.upper": -150, "armR.lower": -20, "legL.upper": 4, "legR.upper": -4, "stretch": 1.08}},
+    {"t": 0.75, "ease": "out", "pose": {"armL.upper": 150, "armL.lower": 20, "armR.upper": -150, "armR.lower": -20, "legL.upper": 4, "legR.upper": -4, "stretch": 1.04}},
+    {"t": 0.85, "ease": "inOut", "pose": {"torso": 10, "root.dy": -1, "armL.upper": 60, "armR.upper": -90}},
+    {"t": 1.0, "pose": {}}
+  ],
+  "dot": {"mode": "pulse", "speed": 2}
+}
