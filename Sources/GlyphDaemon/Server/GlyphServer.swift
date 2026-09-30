@@ -80,6 +80,8 @@ public actor GlyphServer {
     private var deliveryConsent: Set<DeliveredItem.Kind> = []
     /// Marcadores dos projetos (ideia 5).
     private var projects: ProjectTracker?
+    /// Ensinar mostrando (ideia 2).
+    private var routines: RoutineStore?
 
     public init(options: Options, agent: AgentLoop, log: DaemonLog,
                 policy: PolicyStore = PolicyStore(policyURL: nil, trustURL: nil),
@@ -120,6 +122,11 @@ public actor GlyphServer {
     /// Liga os objetivos (M4).
     public func attach(goals: GoalRunner) {
         self.goals = goals
+    }
+
+    /// Liga o ensinar mostrando.
+    public func attach(routines: RoutineStore) {
+        self.routines = routines
     }
 
     /// Liga a retomada de projetos.
@@ -233,6 +240,107 @@ public actor GlyphServer {
             await resolveApproval(r)
         default:
             break
+        }
+    }
+
+    // MARK: - Ensinar mostrando
+
+    /// Comandos de ensino no campo de chamada. Devolve `true` se tratou.
+    private func routineCommand(_ text: String, session: Session) async -> Bool {
+        guard let routines else { return false }
+        let words = text.split(separator: " ").map(String.init)
+        guard let first = words.first?.lowercased() else { return false }
+        let natural = text.lowercased().hasPrefix("aprenda esta rotina") || text.lowercased().hasPrefix("aprenda essa rotina")
+        func say(_ t: String) { send(.bubbleSay(BubbleSay(text: t, durationSec: 8)), to: session) }
+        do {
+            switch natural ? "/ensinar" : first {
+            case "/ensinar":
+                let rest = natural ? Array(words.dropFirst(3)) : Array(words.dropFirst())
+                let name = rest.first { !$0.contains("=") } ?? "rotina-\(routines.list().count + 1)"
+                let s = try routines.start(name: name, parameters: RoutineStore.parseValues(rest))
+                send(.taskUpdate(TaskUpdate(taskId: "ensino-\(s.name)", step: "anotando", progress: 0, object: "diario",
+                                            title: "aprendendo \(s.name)", state: .doing)), to: session)
+                send(.bodyEmote(BodyEmote(clip: "look", dot: .trail, sticker: "diario")), to: session)
+                say("anotando. /pronto quando acabar.")
+            case "/pronto":
+                let r = try routines.finish()
+                send(.taskUpdate(TaskUpdate(taskId: "ensino-\(r.name)", step: "rascunho", progress: 1, object: "diario",
+                                            title: r.name, state: .needsYou, pending: "\(r.steps.count) passos; /aprovar \(r.name)",
+                                            open: routines.mdPath(r))), to: session)
+                say("\(r.steps.count) passos. veja e /aprovar \(r.name)")
+            case "/cancelar":
+                let s = routines.current()
+                try routines.cancel()
+                if let s {
+                    send(.taskUpdate(TaskUpdate(taskId: "ensino-\(s.name)", step: "cancelado", progress: 0, object: "diario",
+                                                state: .parked)), to: session)
+                }
+                say("esqueci a demonstração.")
+            case "/aprovar":
+                guard words.count >= 2 else { say("/aprovar <nome>"); return true }
+                let r = try routines.approve(words[1])
+                await history.append(HistoryEntry(origin: .user, summary: "aprovou a rotina \(r.name)", outcome: .done,
+                                                  authorization: Authorization(.request)))
+                send(.taskUpdate(TaskUpdate(taskId: "ensino-\(r.name)", step: "aprovada", progress: 1, object: "diario",
+                                            title: r.name, state: .done, result: "rotina ativa.")), to: session)
+                say("\(r.name): rotina ativa.")
+            case "/rotina":
+                guard words.count >= 2 else { say("/rotina <nome> param=valor"); return true }
+                await runRoutine(words[1], values: RoutineStore.parseValues(Array(words.dropFirst(2))), routines: routines, session: session)
+            default:
+                return false
+            }
+        } catch {
+            say("\(error)")
+        }
+        return true
+    }
+
+    /// Pelo campo de chamada: ensaia na primeira vez; depois roda, com cada
+    /// passo passando pela política e os irreversíveis pedindo cartão.
+    private func runRoutine(_ name: String, values: [String: String], routines: RoutineStore, session: Session) async {
+        func say(_ t: String) { send(.bubbleSay(BubbleSay(text: t, durationSec: 8)), to: session) }
+        guard let r = routines.load(name) else { say("não conheço \(name)."); return }
+        guard r.approved else { say("\(name) ainda é rascunho."); return }
+        do {
+            if !r.wasRehearsed(values) {
+                let steps = try routines.rehearse(name, values: values)
+                send(.taskUpdate(TaskUpdate(taskId: "rotina-\(name)", step: "ensaio", progress: 0.5, object: "diario",
+                                            title: name, state: .needsYou, pending: "ensaio: \(steps.count) passos. repita para rodar.",
+                                            open: routines.mdPath(r))), to: session)
+                say("ensaio: \(steps.count) passos. repita para rodar.")
+                return
+            }
+            guard let shell = agent.tools["shell"] else { say("sem shell."); return }
+            busy = true
+            defer { busy = false }
+            send(.bodyEmote(BodyEmote(clip: "work", dot: .trail)), to: session)
+            let policy = self.policy
+            let result = try await routines.run(name, values: values, decide: { s in
+                await policy.decide(TrustKey(s.actionClass, Scope.normalize(ShellTool.expand(s.cwd))), tool: "shell",
+                                    trusted: true, userInitiated: true)
+            }, approve: { s, twice in
+                var ok = await self.requestApproval(ApprovalRequest(action: "shell", target: s.command, actionClass: s.actionClass,
+                                                                    why: "rotina \(name): \(s.command)?"), key: nil)
+                if ok, twice {
+                    ok = await self.requestApproval(ApprovalRequest(action: "shell", target: s.command, actionClass: s.actionClass,
+                                                                    why: "tem certeza? isto não tem volta."), key: nil)
+                }
+                return ok
+            }, exec: { s in
+                let out = try await shell.run(.object(["command": .string(s.command), "cwd": .string(ShellTool.expand(s.cwd))]))
+                await self.history.append(HistoryEntry(origin: .user, summary: "rotina \(name): \(s.command)", actionClass: s.actionClass,
+                                                       scope: Scope.normalize(ShellTool.expand(s.cwd)), tool: "shell",
+                                                       outcome: out.isError ? .failed : .done,
+                                                       trigger: "/rotina \(name)",
+                                                       authorization: Authorization(.request, actionClass: s.actionClass)))
+                return out
+            })
+            send(.taskUpdate(TaskUpdate(taskId: "rotina-\(name)", step: "feito", progress: 1, object: "diario", title: name,
+                                        state: result.stoppedAt == nil ? .done : .failed, result: result.text)), to: session)
+            say(result.text)
+        } catch {
+            say("\(error)")
         }
     }
 
@@ -394,6 +502,7 @@ public actor GlyphServer {
             send(.bubbleSay(BubbleSay(text: "calma, um de cada vez.")), to: session)
             return
         }
+        if await routineCommand(text, session: session) { return }
         busy = true
         let task = Task { await self.runSummon(text, session: session) }
         currentTask = task
@@ -517,6 +626,10 @@ public actor GlyphServer {
                 // O arquivo:linha que ele apontou vai para o marcador do projeto.
                 if let ev = done.evidence, let scope = done.scope { await projects?.testFailure(in: scope, at: ev) }
             }
+        }
+        if let routines, let s = routines.record(e) {
+            broadcast(.taskUpdate(TaskUpdate(taskId: "ensino-\(s.name)", step: "\(s.steps.count) anotados", progress: 0,
+                                             object: "diario", title: "aprendendo \(s.name)", state: .doing)))
         }
         if let projects, let back = await projects.handle(e) {
             // Voltou a um projeto depois de um tempo: uma linha, e o marcador na mão.

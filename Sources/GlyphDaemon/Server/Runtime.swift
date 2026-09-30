@@ -67,6 +67,9 @@ public enum Runtime {
         reg.add(RehearseTool(store: store, scope: RehearsalScope(folders: cfg.ferramentas?.organizar?.pastas ?? ["~/Downloads"])))
         reg.add(ApplyPlanTool(store: store))
         reg.add(UndoPlanTool(store: store))
+        // Rotinas ensinadas e aprovadas.
+        let shell = ShellTool(config: .init(allowedRoots: roots, timeout: shellCfg?.timeout ?? 60, useSandboxExec: shellCfg?.sandbox ?? true))
+        reg.add(RoutineTool(store: RoutineStore(paths: paths ?? GlyphPaths.standard(environment: environment)), shell: shell))
         return reg
     }
 

@@ -34,6 +34,14 @@ uso: glyphd <comando>
   ensaio desfazer <id>      desfaz o plano inteiro
   ensaios                   lista os planos
   entregas [n]              o que ele fez com arquivos que você soltou nele
+  ensinar <nome> [param=valor…]
+                            começa a anotar o que você faz no terminal (com o glyphd rodando)
+  ensinar pronto|cancelar   fecha a demonstração num rascunho, ou esquece
+  rotinas                   rotinas e rascunhos
+  rotina ver|aprovar <nome>
+  rotina rodar <nome> [param=valor…] [--sim]
+                            a primeira vez com novos valores só ensaia; depois roda
+                            passo a passo pela política (--sim: aprova os reversíveis)
   memoria [projeto]         onde cada projeto parou (fato · origem · data)
   memoria nota <projeto> "texto"
                             anota o que falta (nunca é trocado por fato automático)
@@ -171,6 +179,7 @@ case "run":
                 await server.attach(goals: goalRunner)
                 await server.attach(delivery: DeliveryRunner(paths: paths))
                 await server.attach(projects: ProjectTracker(repos: repos, paths: paths))
+                await server.attach(routines: RoutineStore(paths: paths))
                 if teamOn { await goalRunner.setTeam(team) }
                 await server.attach(task: Task {
                     while !Task.isCancelled {
@@ -377,6 +386,99 @@ case "memoria":
         print("esqueci \(m.name).")
     case let name?:
         show(find(name))
+    }
+
+case "ensinar":
+    let store = RoutineStore(paths: paths)
+    do {
+        switch args.first {
+        case "pronto"?:
+            let r = try store.finish()
+            print(r.render())
+            print("rascunho em \(store.mdPath(r)). para ativar: glyphd rotina aprovar \(r.name)")
+        case "cancelar"?:
+            try store.cancel()
+            print("esqueci a demonstração.")
+        case let name?:
+            let s = try store.start(name: name, parameters: RoutineStore.parseValues(Array(args.dropFirst())))
+            print("anotando \(s.name). faça a sequência no terminal (com o hook e o glyphd rodando) e depois: glyphd ensinar pronto")
+        case nil:
+            if let s = store.current() {
+                print("aprendendo \(s.name): \(s.steps.count) comandos anotados")
+                s.steps.forEach { print("  \($0.code == 0 ? "✓" : "✗") \($0.command)  (\($0.cwd))") }
+            } else {
+                fail("uso: glyphd ensinar <nome> [param=valor…]")
+            }
+        }
+    } catch {
+        fail("\(error)")
+    }
+
+case "rotinas":
+    for r in RoutineStore(paths: paths).list() {
+        print("\(r.name)  \(r.approved ? "ativa" : "rascunho")  \(r.steps.count) passos  \(r.parameters.keys.sorted().joined(separator: ", "))")
+    }
+
+case "rotina":
+    let store = RoutineStore(paths: paths)
+    guard args.count >= 2 else { fail("uso: glyphd rotina ver|aprovar|rodar <nome>") }
+    let name = args[1]
+    do {
+        switch args[0] {
+        case "ver":
+            guard let r = store.load(name) else { fail("não conheço \(name)") }
+            print(r.render())
+        case "aprovar":
+            let r = try store.approve(name)
+            blocking { _ = await HistoryStore(url: paths.history).append(HistoryEntry(origin: .user, summary: "aprovou a rotina \(r.name)",
+                                                                                     outcome: .done, authorization: Authorization(.request))) }
+            print("\(r.name): rotina ativa.")
+        case "rodar":
+            let values = RoutineStore.parseValues(Array(args.dropFirst(2)))
+            let yes = args.contains("--sim")
+            guard let r = store.load(name) else { fail("não conheço \(name)") }
+            guard r.approved else { fail("\(name) ainda é rascunho: glyphd rotina aprovar \(name)") }
+            if !r.wasRehearsed(values) {
+                let steps = try store.rehearse(name, values: values)
+                print("ensaio (nada foi executado):")
+                steps.forEach { print("  `\($0.command)` em \($0.cwd) · \($0.actionClass.rawValue)\($0.forbidden ? " (proibido: fica de fora)" : "")") }
+                print("rode de novo para executar.")
+                break
+            }
+            let config = loadConfig()
+            guard let shell = Runtime.tools(config)["shell"] else { fail("sem shell") }
+            let policy = PolicyStore(policyURL: paths.policy, trustURL: paths.trust)
+            let history = HistoryStore(url: paths.history)
+            let result = try blocking { () -> Result<RoutineStore.RunResult, Error> in
+                do {
+                    return .success(try await store.run(name, values: values, decide: { s in
+                        await policy.decide(TrustKey(s.actionClass, Scope.normalize(ShellTool.expand(s.cwd))), tool: "shell",
+                                            trusted: true, userInitiated: true)
+                    }, approve: { s, twice in
+                        // Irreversível sempre pergunta, mesmo com --sim.
+                        if yes, !s.isIrreversible { return true }
+                        for _ in 0..<(twice ? 2 : 1) {
+                            FileHandle.standardError.write(Data("rodar `\(s.command)` [\(s.actionClass.rawValue)]? (s/N) ".utf8))
+                            guard readLine()?.lowercased().hasPrefix("s") == true else { return false }
+                        }
+                        return true
+                    }, exec: { s in
+                        print("→ \(s.command)")
+                        let out = try await shell.run(.object(["command": .string(s.command), "cwd": .string(ShellTool.expand(s.cwd))]))
+                        await history.append(HistoryEntry(origin: .user, summary: "rotina \(name): \(s.command)", actionClass: s.actionClass,
+                                                          tool: "shell", outcome: out.isError ? .failed : .done,
+                                                          trigger: "glyphd rotina rodar \(name)",
+                                                          authorization: Authorization(.request, actionClass: s.actionClass)))
+                        return out
+                    }))
+                } catch { return .failure(error) }
+            }.get()
+            print(result.text)
+        default:
+            fail("uso: glyphd rotina ver|aprovar|rodar <nome>")
+        }
+    } catch {
+        fail("\(error)")
     }
 
 case "entregas":

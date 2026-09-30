@@ -170,7 +170,7 @@ final class ConfigAndSecretsTests: XCTestCase {
         XCTAssertThrowsError(try Runtime.brain(.init(provider: "skynet")))
         let tools = Runtime.tools(c)
         XCTAssertEqual(Set(tools.tools.keys), ["shell", "web_search", "web_fetch", "open",
-                                              "ensaiar_organizacao", "aplicar_plano", "desfazer_plano"])
+                                              "ensaiar_organizacao", "aplicar_plano", "desfazer_plano", "rotina"])
     }
 
     func testSecretFromEnvironment() {
