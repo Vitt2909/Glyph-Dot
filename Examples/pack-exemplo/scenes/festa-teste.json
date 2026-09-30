@@ -1,0 +1,8 @@
+{
+  "id": "festa-teste",
+  "event": "teste.passou",
+  "beats": [
+    {"actor": "glyph", "at": 0, "clip": "danca", "bubble": "passou!", "sticker": "balao"},
+    {"actor": "glyph", "at": 2.0, "clip": "wave"}
+  ]
+}

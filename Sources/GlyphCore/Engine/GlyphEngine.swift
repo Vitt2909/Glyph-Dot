@@ -8,6 +8,8 @@ public enum EngineEvent: Sendable, Equatable {
     case openHome
     /// Clique no Glyph segurando o diário: abrir o arquivo.
     case openFile(String)
+    /// A convivência aprendeu algo: o corpo guarda `coexistence` na casa.
+    case preferencesChanged
 }
 
 /// O motor da criatura: junta mundo, física, navegação, comportamento e
@@ -74,6 +76,10 @@ public struct GlyphEngine: Sendable {
     private var approval: (why: String, until: Double)?
     private var budgetDots = 0
     private var pendingDiary: String?
+    /// Tarefas com objeto (ideia 3), pela ordem da última atualização.
+    public private(set) var tasks: [TaskObject] = []
+    /// Oferta em aberto (ideia 1): objeto na mão, ações ao redor.
+    public private(set) var offer: Offer?
     private var fullscreen = false
     private var braked = false
 
@@ -81,6 +87,23 @@ public struct GlyphEngine: Sendable {
     public private(set) var funMode = FunMode()
     /// Preferência de movimento reduzido do sistema: cenas mais curtas.
     public var reducedMotion = false
+
+    // Cenas de packs (ideia 7), por evento real.
+    public var scenes: [SceneEvent: Scene] = [:]
+    private var sceneBeats: [(at: Double, beat: SceneBeat)] = []
+
+    // Convivência (ideia 6): só encenação.
+    public var coexistence = Coexistence()
+    /// Relógio de parede, para a hora do dia. Sem ele, nada espontâneo.
+    private var wallClock: Date?
+    private var userIdle = 0.0
+    private var meeting = false
+    private var buildingUntil = -1.0
+    /// A brincadeira que ele começou sozinho (para aprender se você gostou).
+    public private(set) var spontaneous: FunCommand?
+    private var lastSpontaneous = -1e9
+    /// Espaço mínimo entre brincadeiras espontâneas.
+    public static let spontaneousGap = 20.0 * 60
 
     // Animação
     private var baseClip = "idle"
@@ -183,6 +206,20 @@ public struct GlyphEngine: Sendable {
         fullscreen = on
     }
 
+    /// Reunião ou apresentação (app de chamada na frente): vai para casa.
+    public mutating func setMeeting(_ on: Bool) {
+        meeting = on
+    }
+
+    public mutating func setClock(_ d: Date) { wallClock = d }
+
+    /// Segundos desde o último evento do usuário (teclado, mouse).
+    public mutating func setUserIdle(_ s: Double) { userIdle = max(0, s) }
+
+    public var isBuilding: Bool { time < buildingUntil }
+
+    private var hour: Int? { wallClock.map { Calendar.current.component(.hour, from: $0) } }
+
     public mutating func mouseDown(at p: Vec2) {
         guard let b = hitbox, b.contains(p) else { return }
         press = (p, time, body.position - p)
@@ -207,6 +244,11 @@ public struct GlyphEngine: Sendable {
         if body.support == .carried {
             sim.release(&body, throwVelocity: cursor.velocity)
             justDropped = true
+            // Onde você costuma deixá-lo.
+            if let s = world.screen(containing: p), s.frame.width > 0 {
+                coexistence.placed(fraction: (p.x - s.frame.minX) / s.frame.width)
+                events.append(.preferencesChanged)
+            }
             return
         }
         if time - lastClick < 0.35 {
@@ -215,14 +257,39 @@ public struct GlyphEngine: Sendable {
             return
         }
         lastClick = time
-        click()
+        click(at: p)
     }
 
-    private mutating func click() {
+    private mutating func click(at p: Vec2) {
+        // Uma ação da oferta, ao redor do objeto.
+        if let o = offer {
+            if let hit = offerProps.first(where: { $0.prop.center.distance(to: p) <= $0.prop.hitRadius }) {
+                offer = nil
+                events.append(.send(.offerChoice(OfferChoice(offerId: o.id, actionId: hit.action.id))))
+                say("\(hit.action.label)…", duration: 3)
+                oneShot = ("work", time)
+                return
+            }
+            say(offerLine, duration: 8)
+            return
+        }
         if let diary = pendingDiary {
             pendingDiary = nil
             held = nil
             events.append(.openFile(diary))
+            return
+        }
+        // O objeto da tarefa: progresso, resultado, pendências.
+        if let t = carriedTask {
+            say(t.line, duration: 8)
+            if let path = t.open { events.append(.openFile(path)) }
+            if t.isFinished { tasks.removeAll { $0.id == t.id } } // viu o resultado: larga
+            return
+        }
+        if let c = spontaneous, funMode.scene != nil {
+            // Cortou uma brincadeira que ele começou sozinho: aprende.
+            dismissSpontaneous(c)
+            say("tá bom.", duration: 2)
             return
         }
         if funMode.scene != nil {
@@ -300,15 +367,128 @@ public struct GlyphEngine: Sendable {
             say(BubbleSay(text: r.why).displayText, duration: min(r.timeoutSec, 30))
         case let .taskUpdate(t):
             budgetDots = min(t.budgetRemaining ?? 0, 12)
+            updateTask(t)
         case let .diaryReady(d):
             // Volta de manhã segurando o diário; clicar abre.
             pendingDiary = d.path
             if let s = stickers["diario"] { held = (s, time + 12 * 3600) }
             say("diário pronto.", duration: 6)
+        case let .sceneCue(c):
+            playScene(c.event)
+        case let .presenceHint(h):
+            buildingUntil = h.state == .build ? time + h.untilSec : -1
+        case let .offerActions(o):
+            guard stickers[o.object] != nil, !PackLoader.protectedStickers.contains(o.object) else { break }
+            offer = Offer(id: o.offerId, object: o.object, title: o.title,
+                          actions: Array(o.actions.prefix(OfferActions.maxActions)), until: time + o.timeoutSec)
+            oneShot = ("look", time)
+            say(offerLine, duration: min(o.timeoutSec, 30))
         case .hello,
-             .worldUpdate, .inputSummon, .inputBrake, .approvalResponse:
+             .worldUpdate, .inputSummon, .inputBrake, .approvalResponse, .taskShelf, .inputDrop, .offerChoice:
             break
         }
+    }
+
+    // MARK: - Cenas
+
+    /// Um evento real aconteceu: toca a cena do pack, se houver. Nunca por
+    /// cima de um pedido de aprovação.
+    private mutating func playScene(_ event: SceneEvent) {
+        guard let s = scenes[event], approval == nil, homeState == .outside else { return }
+        sceneBeats = s.beats.sorted { $0.at < $1.at }.map { (time + $0.at, $0) }
+    }
+
+    private mutating func stepScene() {
+        guard !sceneBeats.isEmpty else { return }
+        if approval != nil { sceneBeats.removeAll(); return }
+        while let first = sceneBeats.first, first.at <= time {
+            sceneBeats.removeFirst()
+            let b = first.beat
+            if b.actor == "glyph" {
+                if clips[b.clip] != nil { oneShot = (b.clip, time) }
+                if let t = b.bubble { say(t, duration: 3) }
+                if let id = b.sticker, let s = stickers[id] { held = (s, time + 3) }
+            } else if let role = SpecialistRole(rawValue: b.actor),
+                      let i = companions.firstIndex(where: { $0.role == role && $0.leavingSince == nil }) {
+                // Só quem está em cena de verdade (especialista chamado) atua.
+                if clips[b.clip] != nil {
+                    companions[i].clip = b.clip
+                    companions[i].clipStart = time
+                }
+                if let t = b.bubble {
+                    companions[i].bubble = BubbleSay(text: t).displayText
+                    companions[i].bubbleUntil = time + 3
+                }
+            }
+        }
+    }
+
+    // MARK: - Tarefas e ofertas
+
+    private mutating func updateTask(_ t: TaskUpdate) {
+        guard let object = t.object, stickers[object] != nil, !PackLoader.protectedStickers.contains(object) else {
+            // Sem objeto: só progresso. Atualiza se a tarefa já é conhecida.
+            if let i = tasks.firstIndex(where: { $0.id == t.taskId }) {
+                tasks[i].step = t.step
+                tasks[i].progress = t.progress
+                if let st = t.state { tasks[i].state = st }
+                tasks[i].updated = time
+            }
+            return
+        }
+        let state = t.state ?? .doing
+        tasks.removeAll { $0.id == t.taskId }
+        guard state != .parked else { return } // foi para a prateleira da casa
+        tasks.append(TaskObject(id: t.taskId, object: object, title: t.title ?? "", step: t.step, progress: t.progress,
+                                state: state, pending: t.pending, result: t.result, updated: time, open: t.open))
+        if tasks.count > 8 { tasks.removeFirst(tasks.count - 8) }
+        if state == .needsYou || state == .done {
+            say(tasks.last!.line, duration: 6)
+        }
+    }
+
+    /// A tarefa cujo objeto está na mão: a mais recente.
+    public var carriedTask: TaskObject? { tasks.last { $0.isCarried } }
+
+    private var offerLine: String {
+        guard let o = offer else { return "" }
+        // A bolha tem 40 caracteres: sem espaço, ficam só as ações (na ordem
+        // dos stickers, da esquerda para a direita).
+        let labels = o.actions.map(\.label).joined(separator: " · ")
+        let full = "\(o.title): \(labels)"
+        return full.count <= BubbleSay.maxLength ? full : labels
+    }
+
+    /// Onde fica cada ação da oferta: um arco acima da cabeça, na ordem da bolha.
+    public var offerProps: [(action: OfferAction, prop: Prop)] {
+        guard let o = offer else { return [] }
+        let n = Double(o.actions.count)
+        let top = body.position.y + metrics.height + 20
+        return o.actions.enumerated().compactMap { i, a in
+            guard let s = stickers[a.sticker ?? "folha"] ?? stickers["folha"] else { return nil }
+            let x = body.position.x + (Double(i) - (n - 1) / 2) * 28
+            let arc = 6 * (1 - abs(Double(i) - (n - 1) / 2) / max(n / 2, 1))
+            return (a, Prop(sticker: s, center: Vec2(x, top + arc)))
+        }
+    }
+
+    /// Arquivos arrastados por cima: aceita se o ponto está no Glyph.
+    public func acceptsDrop(at p: Vec2) -> Bool {
+        guard homeState != .inside, let b = lastBounds else { return false }
+        return b.insetBy(dx: -24, dy: -24).contains(p)
+    }
+
+    /// Soltaram arquivos nele: segura e pergunta ao cérebro o que fazer.
+    @discardableResult
+    public mutating func dropped(paths: [String], at p: Vec2) -> Bool {
+        let clean = Array(paths.filter { $0.hasPrefix("/") }.prefix(InputDrop.maxPaths))
+        guard acceptsDrop(at: p), !clean.isEmpty else { return false }
+        if funMode.isOn { stopFun() }
+        oneShot = ("look", time)
+        if let s = stickers["folha"] { held = (s, time + 6) }
+        lookTarget = p
+        events.append(.send(.inputDrop(InputDrop(paths: clean))))
+        return true
     }
 
     /// O usuário respondeu a um pedido (o corpo manda `approval.response`).
@@ -333,6 +513,7 @@ public struct GlyphEngine: Sendable {
     public mutating func fun(_ text: String) -> Bool {
         guard let command = FunCommand.parse(text) else { return false }
         if command == .stop {
+            if let c = spontaneous { dismissSpontaneous(c) }
             stopFun()
             say("fim da brincadeira.")
             return true
@@ -343,6 +524,13 @@ public struct GlyphEngine: Sendable {
         }
         // Um pedido explícito tira o Glyph de casa.
         if let t = brainTarget, case .home = t.goal { brainTarget = nil }
+        // Você chamou para brincar: esta hora é de brincadeira. E o que era
+        // espontâneo vira seu.
+        spontaneous = nil
+        if let h = hour {
+            coexistence.userPlayed(hour: h)
+            events.append(.preferencesChanged)
+        }
         if !funMode.isOn { funMode.begin(at: time) }
         var chosen = command
         if command == .surprise {
@@ -387,7 +575,7 @@ public struct GlyphEngine: Sendable {
     /// pedido de movimento do cérebro, erro ou alerta.
     static func interruptsFun(_ m: Message) -> Bool {
         switch m {
-        case .approvalRequest, .taskUpdate, .bodyGoto:
+        case .approvalRequest, .taskUpdate, .bodyGoto, .offerActions:
             return true
         case let .bodyEmote(e) where e.agentId == nil:
             return PackLoader.protectedClips.contains(e.clip) || e.dot.map { [DotMode.alert, .blink, .shrink].contains($0) } == true
@@ -398,6 +586,7 @@ public struct GlyphEngine: Sendable {
 
     /// Desliga o modo sem cerimônia (o sinal de verdade fala por si).
     private mutating func stopFun() {
+        spontaneous = nil
         guard funMode.isOn else { return }
         endShow()
         funMode.end()
@@ -422,11 +611,19 @@ public struct GlyphEngine: Sendable {
 
     private mutating func stepFun() {
         guard funMode.isOn else { return }
-        if body.coveredBy != nil || fullscreen {
+        if body.coveredBy != nil || fullscreen || meeting {
             stopFun()
             return
         }
         guard let beat = funMode.current else {
+            if let c = spontaneous {
+                // Foi até o fim sem ser cortada.
+                coexistence.enjoyed(c)
+                events.append(.preferencesChanged)
+                spontaneous = nil
+                funMode.end()
+                return
+            }
             if let u = funMode.until, time >= u {
                 funMode.end()
                 say("fim do recreio.")
@@ -577,6 +774,12 @@ public struct GlyphEngine: Sendable {
         if let t = brainTarget, time > t.until { brainTarget = nil }
         if let d = brainDot, time > d.until { brainDot = nil }
         if let h = held, time > h.until { held = nil }
+        stepScene()
+        if let o = offer, time > o.until {
+            // Sem escolha: dispensou.
+            offer = nil
+            events.append(.send(.offerChoice(OfferChoice(offerId: o.id, actionId: nil))))
+        }
 
         let moving = abs(body.velocity.x) > 5 || !body.support.isGrounded
         let near = cursor.position.map { $0.distance(to: body.position) < 200 } ?? false
@@ -650,7 +853,7 @@ public struct GlyphEngine: Sendable {
             .init(.idle, 0.3),
         ]
         if body.coveredBy != nil { options.append(.init(.flee, 1.0, forced: true)) }
-        if fullscreen { options.append(.init(.home, 0.99, forced: true)) }
+        if fullscreen || meeting { options.append(.init(.home, 0.99, forced: true)) }
         if let t = brainTarget {
             if case .home = t.goal {
                 options.append(.init(.home, 0.95, forced: true))
@@ -674,7 +877,8 @@ public struct GlyphEngine: Sendable {
             if let p = cursor.position, p.distance(to: body.position) < 400 {
                 options.append(.init(.observe(p), 0.15 + needs.sociability * 0.6))
             }
-            let boredom = min((time - idleSince) / 40, 0.4) * needs.energy
+            // Com um build rodando, explorar é bem-vindo.
+            let boredom = min((time - idleSince) / 40, 0.4) * needs.energy + (isBuilding ? 0.25 : 0)
             if case let .wander(x) = intent {
                 options.append(.init(.wander(to: x), 0.45))
             } else {
@@ -685,6 +889,7 @@ public struct GlyphEngine: Sendable {
         let before = intent
         let (now, changed) = picker.pick(options, dt: config.thinkInterval)
         if changed { begin(now, from: before) }
+        maybePlaySpontaneously()
 
         // Não dá para dormir pendurado.
         if case .ceiling = body.support, homeState == .outside, intent == .idle || intent == .sleep {
@@ -718,7 +923,44 @@ public struct GlyphEngine: Sendable {
         }
     }
 
+    /// Às vezes, sem ninguém pedir: só quando a convivência deixa, com o
+    /// Glyph livre, e raramente.
+    private mutating func maybePlaySpontaneously() {
+        guard let now = wallClock, let h = hour, !funMode.isOn, !braked, !fullscreen, !meeting,
+              approval == nil, offer == nil, brainTarget == nil, homeState == .outside,
+              body.support.isGrounded, time - lastSpontaneous >= Self.spontaneousGap,
+              carriedTask?.state != .needsYou else { return }
+        switch intent {
+        case .idle, .wander: break
+        default: return
+        }
+        guard coexistence.mayPlay(hour: h, now: now, userIdle: userIdle, building: isBuilding) else { return }
+        // Em média uma vez a cada ~10 min de oportunidade (build: mais).
+        let chance = config.thinkInterval / (isBuilding ? 240 : 600)
+        guard rng.nextUnit() < chance else { return }
+        let u = rng.nextUnit()
+        guard let c = coexistence.pick(u: u, now: now, available: { self.funScene($0) != nil }),
+              let scene = funScene(c) else { return }
+        lastSpontaneous = time
+        funMode.begin(at: time)
+        funMode.play(scene, at: time)
+        spontaneous = c
+    }
+
+    private mutating func dismissSpontaneous(_ c: FunCommand) {
+        if let now = wallClock { coexistence.dismissed(c, now: now) }
+        events.append(.preferencesChanged)
+        spontaneous = nil
+        stopFun()
+    }
+
     private mutating func pickWanderPoint() -> Vec2 {
+        // O lugar de sempre, às vezes.
+        if let f = coexistence.favoriteSpot, rng.nextUnit() < 0.35,
+           let s = world.screen(containing: body.position),
+           let floor = world.standable.first(where: { $0.kind == .floor(screen: s.id) }) {
+            return Vec2(floor.clampX(s.frame.minX + f * s.frame.width, inset: 20), floor.y)
+        }
         let segs = world.standable.filter { $0.length > 60 }
         guard !segs.isEmpty else { return body.position }
         let total = segs.reduce(0) { $0 + $1.length }
@@ -1017,11 +1259,14 @@ public struct GlyphEngine: Sendable {
         }
         if sleepStart != nil { opacity = 0.85 }
 
-        var holding = held?.sticker
+        // Na mão: cartão de aprovação > objeto oferecido > sticker do momento
+        // (diário, gesto) > objeto da tarefa.
+        var holding = held?.sticker ?? carriedTask.flatMap { stickers[$0.object] }
+        if let o = offer { holding = stickers[o.object] ?? holding }
         if approval != nil, locomotion == .stand { holding = stickers["cartao"] ?? holding }
         let d = GlyphDrawing(position: body.position, skeleton: sk, dot: dot, eyes: eyes,
                              boilFrame: Int(time * 24), bubble: bubble?.text, budgetDots: budgetDots,
-                             opacity: opacity, held: holding)
+                             opacity: opacity, held: holding, props: offerProps.map(\.prop))
         lastBounds = d.bounds
         return d
     }

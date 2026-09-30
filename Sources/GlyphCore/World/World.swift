@@ -73,13 +73,17 @@ public struct Wall: Sendable, Hashable {
     public var y1: Double
     /// Bordas de tela seguram o corpo; laterais de janela não.
     public var solid: Bool
+    /// Degrau entre telas: o topo desta parede é o chão da tela vizinha, e
+    /// quem escala sobe nele (do lado de fora).
+    public var ledge: SurfaceKind?
 
-    public init(key: WallKey, x: Double, y0: Double, y1: Double, solid: Bool) {
+    public init(key: WallKey, x: Double, y0: Double, y1: Double, solid: Bool, ledge: SurfaceKind? = nil) {
         self.key = key
         self.x = x
         self.y0 = y0
         self.y1 = y1
         self.solid = solid
+        self.ledge = ledge
     }
 
     public var side: Int { key.side }
@@ -95,6 +99,32 @@ extension WallKey.Owner {
         if case .screen = self { return true }
         return false
     }
+}
+
+/// Onde uma superfície continua em outra tela: chão com chão ou teto com teto
+/// na mesma altura (lado a lado), ou o teto de uma tela com o chão da tela de
+/// cima (empilhadas).
+public struct Passage: Sendable, Hashable {
+    public enum Direction: String, Sendable, Hashable { case left, right, up, down }
+
+    public var from: SurfaceKind
+    public var to: SurfaceKind
+    public var direction: Direction
+    /// Lado a lado: o x da emenda. Empilhadas: o meio do trecho.
+    public var x: Double
+    /// Empilhadas: onde dá para passar (já descontada a largura do corpo).
+    public var span: Span
+
+    public init(from: SurfaceKind, to: SurfaceKind, direction: Direction, x: Double, span: Span) {
+        self.from = from
+        self.to = to
+        self.direction = direction
+        self.x = x
+        self.span = span
+    }
+
+    public var isSide: Bool { direction == .left || direction == .right }
+    public var sign: Double { direction == .left ? -1 : 1 }
 }
 
 /// Medidas do corpo que o mundo precisa conhecer.
@@ -125,6 +155,8 @@ public struct World: Sendable {
     public private(set) var frames: [UInt32: Rect] = [:]
     /// Índice Z (0 = frente) de cada janela.
     public private(set) var zIndex: [UInt32: Int] = [:]
+    /// Continuações entre telas.
+    public private(set) var passages: [Passage] = []
 
     public init(_ snapshot: WorldSnapshot, metrics: BodyMetrics = BodyMetrics()) {
         self.snapshot = snapshot
@@ -151,17 +183,21 @@ public struct World: Sendable {
             segments.append(Segment(kind: .ceiling(screen: s.id), y: s.ceilingY, x0: s.frame.minX, x1: s.frame.maxX))
             for side in [-1, 1] {
                 let x = side < 0 ? s.frame.minX : s.frame.maxX
-                // Se outra tela continua deste lado, não é parede.
-                let open = snapshot.screens.contains { o in
+                // Onde outra tela continua deste lado, não é parede. O que
+                // sobra é parede: acima do teto da vizinha, ou um degrau
+                // abaixo do chão dela (telas de alturas diferentes).
+                let neighbors = snapshot.screens.filter { o in
                     o.id != s.id && abs((side < 0 ? o.frame.maxX : o.frame.minX) - x) < 1
-                        && o.frame.minY < s.frame.maxY && o.frame.maxY > s.frame.minY
                 }
-                if !open {
+                let open = neighbors.map { Span($0.floorY, $0.ceilingY) }
+                for piece in Span.subtract(Span(s.floorY, s.ceilingY), open) where piece.length > 0.5 {
+                    let ledge = neighbors.first { abs($0.floorY - piece.hi) < 1 }.map { SurfaceKind.floor(screen: $0.id) }
                     walls.append(Wall(key: WallKey(owner: .screen(s.id), side: side), x: x,
-                                      y0: s.floorY, y1: s.ceilingY, solid: true))
+                                      y0: piece.lo, y1: piece.hi, solid: true, ledge: ledge))
                 }
             }
         }
+        buildPassages()
 
         for (i, w) in windows.enumerated() {
             let f = w.frame
@@ -197,7 +233,71 @@ public struct World: Sendable {
         }
     }
 
+    private mutating func buildPassages() {
+        let half = metrics.halfWidth
+        for s in snapshot.screens {
+            for o in snapshot.screens where o.id != s.id {
+                // Lado a lado: `o` começa onde `s` termina.
+                if abs(o.frame.minX - s.frame.maxX) < 1 {
+                    if abs(o.floorY - s.floorY) < 1 {
+                        add(.floor(screen: s.id), .floor(screen: o.id), x: s.frame.maxX)
+                    }
+                    if abs(o.ceilingY - s.ceilingY) < 1 {
+                        add(.ceiling(screen: s.id), .ceiling(screen: o.id), x: s.frame.maxX)
+                    }
+                }
+                // Empilhadas: `o` fica em cima de `s`. Passa entre o teto de
+                // baixo e o chão de cima, onde as duas se sobrepõem.
+                if abs(o.frame.minY - s.frame.maxY) < 1,
+                   let overlap = Span(s.frame.minX, s.frame.maxX).intersect(Span(o.frame.minX, o.frame.maxX)),
+                   overlap.length >= metrics.width * 2 {
+                    let span = Span(overlap.lo + half, overlap.hi - half)
+                    let mid = (span.lo + span.hi) / 2
+                    passages.append(Passage(from: .ceiling(screen: s.id), to: .floor(screen: o.id), direction: .up, x: mid, span: span))
+                    passages.append(Passage(from: .floor(screen: o.id), to: .ceiling(screen: s.id), direction: .down, x: mid, span: span))
+                }
+            }
+        }
+
+        func add(_ a: SurfaceKind, _ b: SurfaceKind, x: Double) {
+            let span = Span(x - 1, x + 1)
+            passages.append(Passage(from: a, to: b, direction: .right, x: x, span: span))
+            passages.append(Passage(from: b, to: a, direction: .left, x: x, span: span))
+        }
+    }
+
     // MARK: - Consultas
+
+    /// Passagem lateral atravessada ao ir de `x0` a `x1` saindo de `kind`.
+    public func sidePassage(from kind: SurfaceKind, x0: Double, x1: Double) -> Passage? {
+        passages.first { p in
+            guard p.from == kind else { return false }
+            switch p.direction {
+            case .right: return x0 <= p.x + 1 && x1 > p.x
+            case .left: return x0 >= p.x - 1 && x1 < p.x
+            default: return false
+            }
+        }
+    }
+
+    /// Passagem lateral saindo de `kind` para este lado.
+    public func sidePassage(from kind: SurfaceKind, direction: Passage.Direction) -> Passage? {
+        passages.first { $0.from == kind && $0.direction == direction }
+    }
+
+    /// Passagem vertical saindo de `kind` que cobre `x`.
+    public func verticalPassage(from kind: SurfaceKind, x: Double) -> Passage? {
+        passages.first { $0.from == kind && !$0.isSide && x >= $0.span.lo - 1 && x <= $0.span.hi + 1 }
+    }
+
+    /// O pedaço de parede mais perto da altura `y` (uma borda de tela pode ter
+    /// mais de um).
+    public func nearestWall(_ key: WallKey, to y: Double) -> Wall? {
+        walls.filter { $0.key == key }.min { a, b in
+            func d(_ w: Wall) -> Double { y < w.y0 ? w.y0 - y : (y > w.y1 ? y - w.y1 : 0) }
+            return d(a) < d(b)
+        }
+    }
 
     public func screen(containing p: Vec2) -> ScreenInfo? {
         snapshot.screens.first { $0.frame.contains(p) }

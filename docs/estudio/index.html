@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Estúdio do Glyph</title>
+<meta name="description" content="Crie clipes e cenas para o Glyph sem instalar nada: poses, linha do tempo, prévia e um pack pronto para validar.">
+<style>
+  :root {
+    --paper: #f4f1ea;
+    --card: #ffffff;
+    --ink: #111111;
+    --muted: #6b665c;
+    --line: #d9d3c6;
+    --accent: #111111;
+    --accent-ink: #ffffff;
+    --bad: #a3261b;
+    --ok: #2f6b2f;
+    --focus: #3a6ea5;
+    --stage: #fbfaf6;
+    --radius: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #1d1c1a; --card: #282724; --ink: #f2efe8; --muted: #a8a295; --line: #3d3b36;
+      --accent: #f2efe8; --accent-ink: #1d1c1a; --bad: #ff8a7a; --ok: #8fd18f; --focus: #8fb8e8; --stage: #22211e;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #1d1c1a; --card: #282724; --ink: #f2efe8; --muted: #a8a295; --line: #3d3b36;
+    --accent: #f2efe8; --accent-ink: #1d1c1a; --bad: #ff8a7a; --ok: #8fd18f; --focus: #8fb8e8; --stage: #22211e;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--paper); color: var(--ink);
+    font: 15px/1.45 ui-rounded, "SF Pro Rounded", "Nunito", system-ui, sans-serif;
+  }
+  main { max-width: 1120px; margin: 0 auto; padding: 20px 16px 48px; }
+  header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+  h1 { font-size: 28px; margin: 0; letter-spacing: -0.5px; }
+  h2 { font-size: 16px; margin: 0 0 10px; }
+  .sub { color: var(--muted); margin: 0 0 16px; max-width: 70ch; }
+  .tabs { display: flex; gap: 6px; margin: 16px 0; flex-wrap: wrap; }
+  .tabs button { border-radius: 999px; }
+  .tabs button[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button, select, input, textarea {
+    font: inherit; color: var(--ink); background: var(--card);
+    border: 1.5px solid var(--line); border-radius: 8px; padding: 6px 10px;
+  }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--ink); }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 16px; }
+  @media (max-width: 820px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+  .card { background: var(--card); border: 1.5px solid var(--line); border-radius: var(--radius); padding: 14px; min-width: 0; }
+  .stage { background: var(--stage); border-radius: 10px; border: 1.5px dashed var(--line); }
+  .stage svg { display: block; width: 100%; height: auto; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
+  .row label { display: flex; gap: 6px; align-items: center; }
+  .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 12px; }
+  .fields label { display: grid; gap: 3px; font-size: 13px; color: var(--muted); }
+  .fields input, .fields select { width: 100%; }
+  .sliders { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 4px 16px; }
+  .slider { display: grid; grid-template-columns: 92px minmax(0, 1fr) 52px; align-items: center; gap: 8px; font-size: 13px; }
+  .slider span:first-child { color: var(--muted); }
+  .slider input[type=range] { width: 100%; accent-color: var(--ink); padding: 0; border: 0; background: none; }
+  .slider output { text-align: right; font-variant-numeric: tabular-nums; }
+  .slider.touched span:first-child { color: var(--ink); font-weight: 600; }
+  .group { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 10px 0 2px; grid-column: 1 / -1; }
+  .timeline { position: relative; height: 46px; margin: 10px 4px 4px; cursor: pointer; }
+  .timeline .bar { position: absolute; left: 0; right: 0; top: 21px; height: 4px; background: var(--line); border-radius: 2px; }
+  .timeline .key {
+    position: absolute; top: 12px; width: 22px; height: 22px; margin-left: -11px; border-radius: 50%;
+    background: var(--card); border: 2.5px solid var(--ink); cursor: pointer; padding: 0;
+  }
+  .timeline .key[aria-current="true"] { background: var(--ink); }
+  .timeline .head { position: absolute; top: 4px; bottom: 4px; width: 2px; margin-left: -1px; background: var(--focus); pointer-events: none; }
+  .ticks { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin: 0 4px; }
+  ul.problems { margin: 6px 0 0; padding-left: 18px; }
+  ul.problems li { color: var(--bad); }
+  .ok { color: var(--ok); }
+  .muted { color: var(--muted); font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; color: var(--muted); font-weight: 500; font-size: 12px; padding: 4px; }
+  td { padding: 3px 4px; }
+  td input, td select { width: 100%; padding: 4px 6px; }
+  .table-wrap { overflow-x: auto; }
+  .table-wrap table { min-width: 560px; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+  pre { background: var(--stage); border: 1.5px solid var(--line); border-radius: 8px; padding: 10px; overflow-x: auto; margin: 8px 0 0; }
+  .list { display: grid; gap: 6px; margin: 8px 0; }
+  .list .item { display: flex; justify-content: space-between; gap: 8px; align-items: center; border: 1.5px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+  .hidden { display: none !important; }
+  .theme { margin-left: auto; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Estúdio do Glyph</h1>
+    <button class="theme" id="theme" type="button" aria-label="Trocar tema">tema</button>
+  </header>
+  <p class="sub">Crie um clipe (poses e linha do tempo) ou uma cena entre especialistas, veja a prévia com as mesmas contas do motor, e baixe um pack pronto para <code>glyphd packs validar</code>. Nada sai do seu navegador.</p>
+
+  <div class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-tab="clipe" type="button">Clipe</button>
+    <button role="tab" aria-selected="false" data-tab="cena" type="button">Cena</button>
+    <button role="tab" aria-selected="false" data-tab="pack" type="button">Pack</button>
+  </div>
+
+  <!-- CLIPE -->
+  <section id="tab-clipe" class="grid">
+    <div class="card">
+      <div class="stage"><svg id="preview" viewBox="0 0 320 260" role="img" aria-label="Prévia do clipe"></svg></div>
+      <div class="timeline" id="timeline" aria-label="Linha do tempo"><div class="bar"></div></div>
+      <div class="ticks"><span>0 s</span><span id="dur">0 s</span></div>
+      <div class="row">
+        <button id="play" class="primary" type="button">▶ tocar</button>
+        <label><input type="checkbox" id="twos" checked> em dois (fps)</label>
+        <label><input type="checkbox" id="mirror"> espelhado</label>
+        <label><input type="checkbox" id="onion" checked> casca da chave anterior</label>
+      </div>
+      <div class="row">
+        <button id="add-key" type="button">+ chave</button>
+        <button id="dup-key" type="button">duplicar</button>
+        <button id="del-key" type="button">apagar chave</button>
+        <button id="rest-key" type="button">pose de repouso</button>
+      </div>
+      <div class="fields">
+        <label>tempo da chave (s)<input id="key-t" type="number" step="0.05" min="0"></label>
+        <label>curva até a próxima<select id="key-ease"></select></label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Clipe</h2>
+      <div class="fields">
+        <label>id<input id="clip-id" autocomplete="off" spellcheck="false"></label>
+        <label>fps<input id="clip-fps" type="number" min="1" max="60"></label>
+        <label>Dot<select id="clip-dot"></select></label>
+        <label>velocidade do Dot<input id="clip-dot-speed" type="number" step="0.25" min="0.25"></label>
+        <label style="grid-template-columns:auto 1fr;align-items:center;display:flex;gap:6px"><input id="clip-loop" type="checkbox" style="width:auto"> repete</label>
+      </div>
+      <div class="row">
+        <select id="base" aria-label="Começar de um clipe do pack padrão"></select>
+        <button id="load-base" type="button">abrir</button>
+        <button id="new-clip" type="button">novo</button>
+        <label class="row" style="margin:0"><input id="import" type="file" accept=".json,application/json" class="hidden">
+          <button id="import-btn" type="button">importar .json</button></label>
+      </div>
+      <div id="sliders" class="sliders"></div>
+      <div id="clip-problems"></div>
+      <div class="row">
+        <button id="to-pack" class="primary" type="button">guardar no pack</button>
+        <button id="download-clip" type="button">baixar .json</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- CENA -->
+  <section id="tab-cena" class="grid hidden">
+    <div class="card">
+      <h2>Cena</h2>
+      <p class="muted">Uma cena só toca quando o glyphd manda o evento de verdade. O pack dá a encenação, nunca o evento. Especialistas só atuam se estiverem mesmo em cena; sinais de segurança (cartão, pausa, escudo, espera, erro, alerta) não entram.</p>
+      <div class="fields">
+        <label>id<input id="scene-id" autocomplete="off" spellcheck="false"></label>
+        <label>evento real<select id="scene-event"></select></label>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>quem</th><th>em (s)</th><th>clipe</th><th>bolha (até 40)</th><th>sticker</th><th></th></tr></thead>
+          <tbody id="beats"></tbody>
+        </table>
+      </div>
+      <datalist id="clip-names"></datalist>
+      <datalist id="sticker-names"></datalist>
+      <div class="row"><button id="add-beat" type="button">+ batida</button></div>
+      <div id="scene-problems"></div>
+      <div class="row">
+        <button id="scene-to-pack" class="primary" type="button">guardar no pack</button>
+        <button id="download-scene" type="button">baixar .json</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Prévia da cena</h2>
+      <div class="stage"><svg id="scene-preview" viewBox="0 0 320 200" role="img" aria-label="Prévia da cena"></svg></div>
+      <div class="row"><button id="scene-play" class="primary" type="button">▶ tocar</button></div>
+      <p class="muted">A prévia usa os clipes do pack padrão e os que você guardou no pack.</p>
+    </div>
+  </section>
+
+  <!-- PACK -->
+  <section id="tab-pack" class="grid hidden">
+    <div class="card">
+      <h2>Pack</h2>
+      <div class="fields">
+        <label>id<input id="pack-id" autocomplete="off" spellcheck="false"></label>
+        <label>nome<input id="pack-nome"></label>
+        <label>versão<input id="pack-versao"></label>
+        <label>autoria<input id="pack-autor"></label>
+        <label>licença (SPDX)<input id="pack-licenca" list="licencas"></label>
+        <label>descrição<input id="pack-descricao"></label>
+      </div>
+      <datalist id="licencas"><option value="CC0-1.0"><option value="CC-BY-4.0"><option value="CC-BY-SA-4.0"><option value="MIT"></datalist>
+      <div id="pack-problems"></div>
+      <div class="row"><button id="download-pack" class="primary" type="button">baixar pack (.zip)</button></div>
+    </div>
+    <div class="card">
+      <h2>No pack</h2>
+      <div id="pack-list" class="list"></div>
+      <h2 style="margin-top:14px">Depois de baixar</h2>
+      <pre>unzip meu-pack.zip
+glyphd packs validar meu-pack
+cp -R meu-pack "$(glyphd paths | sed -n 's/^casa: *//p')/packs/"</pre>
+      <p class="muted">Reabra o Glyph.app. Para a prévia oficial em SVG: coloque o pack em <code>Examples/</code> e rode <code>swift run glyph-art</code>.</p>
+    </div>
+  </section>
+</main>
+<script src="nucleo.js"></script>
+<script src="padrao.js"></script>
+<script src="estudio.js"></script>
+</body>
+</html>

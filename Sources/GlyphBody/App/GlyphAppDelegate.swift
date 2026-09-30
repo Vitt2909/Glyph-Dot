@@ -26,8 +26,11 @@ public final class GlyphAppDelegate: NSObject, NSApplicationDelegate {
             FileHandle.standardError.write(Data("pack: nenhum clipe encontrado; o Glyph vai ficar parado\n".utf8))
         }
 
-        let body = BodyController(clips: clips, stickers: stickers)
+        let casa = PackLocator.communityDir.deletingLastPathComponent()
+        let body = BodyController(clips: clips, stickers: stickers,
+                                  coexistenceFile: casa.appendingPathComponent("convivencia.json"))
         self.body = body
+        body.setScenes(PackLoader.scenes(default: pack, community: PackLoader.communityPacks(in: PackLocator.communityDir)))
 
         if ProcessInfo.processInfo.environment["GLYPH_MOCK"] == "1" {
             mock = MockBrain()
@@ -45,6 +48,8 @@ public final class GlyphAppDelegate: NSObject, NSApplicationDelegate {
         }
 
         body.onOpenHome = { [weak self] in self?.homePanel.show() }
+        // A prateleira da casa é um pedido ao glyphd (o painel não escreve na casa).
+        homePanel.onShelf = { [weak self] id, park in self?.link?.send(.taskShelf(TaskShelf(taskId: id, park: park))) }
         summonPanel.onSubmit = { [weak self] text in self?.summon(text) }
         approvalCard.onAnswer = { [weak self] id, decision in
             self?.link?.send(.approvalResponse(ApprovalResponse(requestId: id, decision: decision)))

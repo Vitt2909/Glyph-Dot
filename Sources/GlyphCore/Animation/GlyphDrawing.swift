@@ -20,10 +20,12 @@ public struct GlyphDrawing: Sendable, Equatable {
     public var opacity: Double
     /// Sticker segurado na mão (cartão de aprovação, folha de memória…).
     public var held: Sticker?
+    /// Stickers soltos ao redor (as ações de uma oferta), em coordenadas globais.
+    public var props: [Prop]
 
     public init(position: Vec2, skeleton: SkeletonPoints, dot: DotDrawing, eyes: EyesDrawing? = nil,
                 boilFrame: Int = 0, bubble: String? = nil, budgetDots: Int = 0, opacity: Double = 1,
-                held: Sticker? = nil) {
+                held: Sticker? = nil, props: [Prop] = []) {
         self.position = position
         self.skeleton = skeleton
         self.dot = dot
@@ -33,6 +35,7 @@ public struct GlyphDrawing: Sendable, Equatable {
         self.budgetDots = budgetDots
         self.opacity = opacity
         self.held = held
+        self.props = props
     }
 
     /// Onde o sticker segurado fica: ao lado da mão mais à frente.
@@ -54,8 +57,14 @@ public struct GlyphDrawing: Sendable, Equatable {
         minY = Swift.min(minY, skeleton.headCenter.y - r)
         maxY = Swift.max(maxY, skeleton.headCenter.y + r)
         let pad = StickerStyle.default.outlineStrokeWidth / 2
-        return Rect(minX: position.x + minX - pad, minY: position.y + minY - pad,
-                    maxX: position.x + maxX + pad, maxY: position.y + maxY + pad)
+        var box = Rect(minX: position.x + minX - pad, minY: position.y + minY - pad,
+                       maxX: position.x + maxX + pad, maxY: position.y + maxY + pad)
+        // As ações ao redor também são clicáveis.
+        for p in props {
+            let h = p.hitRadius
+            box = box.union(Rect(minX: p.center.x - h, minY: p.center.y - h, maxX: p.center.x + h, maxY: p.center.y + h))
+        }
+        return box
     }
 
     /// O Glyph parado, em repouso. É o que o M0 desenha.

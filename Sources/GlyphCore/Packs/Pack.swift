@@ -48,6 +48,8 @@ public struct Pack: Sendable {
     public var manifest: PackManifest?
     public var clips: ClipLibrary
     public var stickers: [String: Sticker]
+    /// Cenas ligadas a eventos reais (`scenes/*.json`).
+    public var scenes: [Scene] = []
     public var errors: [String]
 }
 
@@ -101,6 +103,16 @@ public enum PackLoader {
         return (clips, stickers, manifests, errors)
     }
 
+    /// Cenas de todos os packs, uma por evento: a da comunidade vence a padrão.
+    public static func scenes(default defaultPack: URL, community: [URL]) -> [SceneEvent: Scene] {
+        var out: [SceneEvent: Scene] = [:]
+        for s in loadPack(defaultPack, requireManifest: false).scenes { out[s.event] = s }
+        for url in community.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
+            for s in loadPack(url, requireManifest: true).scenes { out[s.event] = s }
+        }
+        return out
+    }
+
     /// As pastas de pack dentro de `dir` (cada subpasta é um pack).
     public static func communityPacks(in dir: URL) -> [URL] {
         let fm = FileManager.default
@@ -129,7 +141,7 @@ public enum PackLoader {
             errors.append("\(name): falta pack.json")
         }
         if requireManifest && manifest == nil {
-            return Pack(manifest: nil, clips: ClipLibrary(), stickers: [:], errors: errors)
+            return Pack(manifest: nil, clips: ClipLibrary(), stickers: [:], scenes: [], errors: errors)
         }
         let prefix = manifest?.id ?? name
         var clips = ClipLibrary()
@@ -159,7 +171,20 @@ public enum PackLoader {
                 errors.append("\(prefix)/stickers/\(file).json: \(error)")
             }
         }
-        return Pack(manifest: manifest, clips: clips, stickers: stickers, errors: errors)
+        var scenes: [Scene] = []
+        for (file, data) in jsonFiles(dir.appendingPathComponent("scenes"), errors: &errors, pack: prefix) {
+            do {
+                let s = try Scene.decode(data)
+                guard s.id == file else {
+                    errors.append("\(prefix)/scenes/\(file).json: id diferente do nome do arquivo")
+                    continue
+                }
+                scenes.append(s)
+            } catch {
+                errors.append("\(prefix)/scenes/\(file).json: \(error)")
+            }
+        }
+        return Pack(manifest: manifest, clips: clips, stickers: stickers, scenes: scenes, errors: errors)
     }
 
     private static func jsonFiles(_ dir: URL, errors: inout [String], pack: String) -> [(String, Data)] {

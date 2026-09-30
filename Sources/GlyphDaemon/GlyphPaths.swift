@@ -27,6 +27,12 @@ public struct GlyphPaths: Sendable, Equatable {
     public var skillDrafts: URL { skills.appendingPathComponent("_rascunhos", isDirectory: true) }
     public var diario: URL { casa.appendingPathComponent("diario", isDirectory: true) }
     public var journal: URL { casa.appendingPathComponent("journal", isDirectory: true) }
+    /// Resultados do que você entrega ao Glyph (resumos, mapas).
+    public var entregas: URL { casa.appendingPathComponent("entregas", isDirectory: true) }
+    /// Imagens guardadas como referência.
+    public var referencias: URL { casa.appendingPathComponent("referencias", isDirectory: true) }
+    /// Planos do modo ensaio.
+    public var ensaios: URL { casa.appendingPathComponent("ensaios", isDirectory: true) }
     public var database: URL { casa.appendingPathComponent("glyph.sqlite") }
     public var goals: URL { casa.appendingPathComponent("goals.yaml") }
     public var policy: URL { casa.appendingPathComponent("policy.yaml") }

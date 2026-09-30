@@ -3,8 +3,9 @@
 # Instale adicionando ao ~/.zshrc:
 #   source /caminho/para/Glyph/Scripts/glyph-shell.zsh
 #
-# O que envia ao glyphd (socket local, só o seu usuário): o comando, o código
-# de saída, a pasta e a duração. NÃO lê a tela nem a saída dos comandos.
+# O que envia ao glyphd (socket local, só o seu usuário): o comando e a pasta
+# quando ele começa; o código de saída e a duração quando termina. NÃO lê a
+# tela nem a saída dos comandos.
 # Comandos que começam com espaço não são enviados.
 
 zmodload zsh/datetime 2>/dev/null
@@ -28,6 +29,10 @@ _glyph_preexec() {
   if [[ "$1" == " "* ]]; then _glyph_cmd=""; return; fi
   _glyph_cmd="$1"
   _glyph_start=$EPOCHREALTIME
+  [[ -S "$_glyph_sock" ]] || return
+  # Começou (um build rodando deixa o Glyph explorar).
+  local line="{\"kind\":\"shell.start\",\"cmd\":\"$(_glyph_json_escape "$1")\",\"cwd\":\"$(_glyph_json_escape "$PWD")\"}"
+  ( zsocket "$_glyph_sock" 2>/dev/null && print -r -- "$line" >&$REPLY; exec {REPLY}>&- ) &!
 }
 
 _glyph_precmd() {

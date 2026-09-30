@@ -283,17 +283,128 @@ public struct ApprovalRequest: Sendable, Equatable, Codable {
 }
 
 public struct TaskUpdate: Sendable, Equatable, Codable {
+    public enum State: String, Sendable, Codable {
+        case doing
+        case done
+        case needsYou = "needs_you"
+        case parked
+        case failed
+    }
+
     public var taskId: String
     public var step: String
     public var progress: Double
     /// Ações restantes no orçamento; o corpo mostra como pontos carregados.
     public var budgetRemaining: Int?
+    /// O objeto que o Glyph carrega enquanto a tarefa existe (um sticker:
+    /// envelope, livro, chave, pasta…). Só existe com uma tarefa de verdade.
+    public var object: String?
+    public var title: String?
+    public var state: State?
+    /// O que falta (e de quem).
+    public var pending: String?
+    public var result: String?
+    /// Arquivo que um clique no objeto abre (o marcador do projeto, um relatório).
+    public var open: String?
 
-    public init(taskId: String, step: String, progress: Double, budgetRemaining: Int? = nil) {
+    public init(taskId: String, step: String, progress: Double, budgetRemaining: Int? = nil, object: String? = nil,
+                title: String? = nil, state: State? = nil, pending: String? = nil, result: String? = nil, open: String? = nil) {
         self.taskId = taskId
         self.step = step
         self.progress = progress
         self.budgetRemaining = budgetRemaining
+        self.object = object
+        self.title = title
+        self.state = state
+        self.pending = pending
+        self.result = result
+        self.open = open
+    }
+}
+
+/// Cérebro → corpo: o que está acontecendo no computador, para a encenação
+/// (ex.: um build rodando: ele pode explorar). Nunca muda permissão.
+public struct PresenceHint: Sendable, Equatable, Codable {
+    public enum State: String, Sendable, Codable { case build, clear }
+
+    public var state: State
+    public var untilSec: Double
+
+    public init(state: State, untilSec: Double = 900) {
+        self.state = state
+        self.untilSec = untilSec
+    }
+}
+
+/// Cérebro → corpo: aconteceu um evento real que um pack pode encenar.
+public struct SceneCue: Sendable, Equatable, Codable {
+    public var event: SceneEvent
+
+    public init(event: SceneEvent) { self.event = event }
+}
+
+/// Corpo → cérebro: guardar uma tarefa na prateleira da casa, ou retomá-la.
+public struct TaskShelf: Sendable, Equatable, Codable {
+    public var taskId: String
+    public var park: Bool
+
+    public init(taskId: String, park: Bool) {
+        self.taskId = taskId
+        self.park = park
+    }
+}
+
+/// Corpo → cérebro: arquivos soltos sobre o Glyph. Só os caminhos; o
+/// conteúdo quem lê é o `glyphd`, e só destes caminhos.
+public struct InputDrop: Sendable, Equatable, Codable {
+    public static let maxPaths = 20
+
+    public var paths: [String]
+
+    public init(paths: [String]) { self.paths = paths }
+}
+
+/// Uma ação oferecida para um objeto.
+public struct OfferAction: Sendable, Equatable, Codable {
+    public var id: String
+    public var label: String
+    /// Sticker que representa a ação ao redor do objeto.
+    public var sticker: String?
+
+    public init(id: String, label: String, sticker: String? = nil) {
+        self.id = id
+        self.label = label
+        self.sticker = sticker
+    }
+}
+
+/// Cérebro → corpo: o Glyph segura o objeto e mostra as ações ao redor.
+public struct OfferActions: Sendable, Equatable, Codable {
+    public static let maxActions = 4
+
+    public var offerId: String
+    public var object: String
+    public var title: String
+    public var actions: [OfferAction]
+    public var timeoutSec: Double
+
+    public init(offerId: String, object: String, title: String, actions: [OfferAction], timeoutSec: Double = 120) {
+        self.offerId = offerId
+        self.object = object
+        self.title = title
+        self.actions = actions
+        self.timeoutSec = timeoutSec
+    }
+}
+
+/// Corpo → cérebro: a ação escolhida (`nil`: dispensou).
+public struct OfferChoice: Sendable, Equatable, Codable {
+    public var offerId: String
+    public var actionId: String?
+
+    public init(offerId: String, actionId: String?) {
+        self.offerId = offerId
+        self.actionId = actionId
     }
 }
 

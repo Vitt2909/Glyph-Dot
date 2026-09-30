@@ -38,6 +38,8 @@ public final class GlyphView: NSView {
         sticker.actions = ["opacity": NSNull()]
         layer?.addSublayer(sticker)
         applyStyle()
+        // Arquivos soltos sobre o Glyph (entregar trabalho).
+        registerForDraggedTypes([.fileURL])
     }
 
     @available(*, unavailable)
@@ -149,6 +151,27 @@ public final class GlyphView: NSView {
     override public func mouseDragged(with event: NSEvent) { onMouseDragged?(event) }
     override public func mouseUp(with event: NSEvent) { onMouseUp?(event) }
     override public func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    // MARK: - Arrastar e soltar
+
+    /// O ponto (global) está sobre o Glyph? Só aí ele aceita.
+    public var onDragOver: ((CGPoint) -> Bool)?
+    /// Caminhos soltos e o ponto (global). Devolve se aceitou.
+    public var onDrop: (([String], CGPoint) -> Bool)?
+
+    private func dragOperation() -> NSDragOperation {
+        onDragOver?(NSEvent.mouseLocation) == true ? .copy : []
+    }
+
+    override public func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation { dragOperation() }
+    override public func draggingUpdated(_ sender: any NSDraggingInfo) -> NSDragOperation { dragOperation() }
+
+    override public func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+        let urls = sender.draggingPasteboard.readObjects(forClasses: [NSURL.self],
+                                                         options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
+        guard !urls.isEmpty else { return false }
+        return onDrop?(urls.map(\.path), NSEvent.mouseLocation) ?? false
+    }
 }
 
 /// Bolha de fala: cartão branco com traço preto, também com cara de adesivo.

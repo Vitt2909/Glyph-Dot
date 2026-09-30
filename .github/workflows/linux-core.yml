@@ -31,5 +31,20 @@ jobs:
         run: |
           swift run glyph-art
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          git diff --exit-code -- docs/art Packs/default/stickers Examples/pack-exemplo || {
+          git diff --exit-code -- docs/art docs/estudio Packs/default/stickers Examples/pack-exemplo || {
             echo "::error::A arte mudou. Rode Scripts/gerar-arte.sh e faça commit."; exit 1; }
+          novos=$(git ls-files --others --exclude-standard -- docs/art docs/estudio Packs/default/stickers Examples/pack-exemplo)
+          if [ -n "$novos" ]; then
+            echo "::error::Arte nova sem commit: $novos"; exit 1; fi
+
+  estudio:
+    # O estúdio web refaz as contas do motor em JavaScript: confere contra a
+    # referência que o teste StudioReferenceTests guarda.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: O estúdio bate com o motor
+        run: node Scripts/estudio-check.mjs

@@ -49,9 +49,15 @@ public struct DaemonConfig: Decodable, Sendable, Equatable {
         public var searxng: String?
     }
 
+    public struct Organizar: Decodable, Sendable, Equatable {
+        /// Pastas que o modo ensaio pode organizar.
+        public var pastas: [String]?
+    }
+
     public struct Ferramentas: Decodable, Sendable, Equatable {
         public var shell: Shell?
         public var web: Web?
+        public var organizar: Organizar?
     }
 
     public struct Sensores: Decodable, Sendable, Equatable {
@@ -144,6 +150,9 @@ public struct DaemonConfig: Decodable, Sendable, Equatable {
       web:
         busca: duckduckgo   # duckduckgo | brave | searxng
         # searxng: http://127.0.0.1:8888
+      organizar:
+        # Pastas que o modo ensaio pode organizar (mostra o plano antes).
+        pastas: [~/Downloads]
 
     sensores:
       # Eventos do terminal (instale Scripts/glyph-shell.zsh no ~/.zshrc).

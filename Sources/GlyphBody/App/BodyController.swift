@@ -27,12 +27,34 @@ public final class BodyController: NSObject {
     public var onWorld: ((WorldUpdate) -> Void)?
     private var summaries: [WindowSummary] = []
     private var fullscreen = false
+    private var meeting = false
     private var lastWorldReport = Date.distantPast
+    /// Onde a convivência aprendida fica (`casa/convivencia.json`).
+    private let coexistenceFile: URL?
 
-    public init(clips: ClipLibrary, stickers: [String: Sticker] = [:]) {
+    public init(clips: ClipLibrary, stickers: [String: Sticker] = [:], coexistenceFile: URL? = nil) {
         let (snapshot, _) = SystemWorldReader().read()
         engine = GlyphEngine(world: snapshot, clips: clips, stickers: stickers)
+        self.coexistenceFile = coexistenceFile
+        if let url = coexistenceFile, let data = try? Data(contentsOf: url),
+           let saved = try? JSONDecoder().decode(Coexistence.self, from: data) {
+            engine.coexistence = saved
+        }
         super.init()
+    }
+
+    /// Cenas dos packs, por evento real.
+    public func setScenes(_ scenes: [SceneEvent: Scene]) {
+        engine.scenes = scenes
+    }
+
+    private func saveCoexistence() {
+        guard let url = coexistenceFile else { return }
+        let enc = JSONEncoder()
+        enc.outputFormatting = [.prettyPrinted, .sortedKeys]
+        guard let data = try? enc.encode(engine.coexistence) else { return }
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? data.write(to: url, options: .atomic)
     }
 
     public func start() {
@@ -77,7 +99,7 @@ public final class BodyController: NSObject {
         let near = engine.hitbox.map { Vec2(NSEvent.mouseLocation).distance(to: $0.center) < 160 } ?? false
         return WorldUpdate(activeApp: front?.localizedName, activePID: front?.processIdentifier,
                            idleSeconds: max(0, idle), cursorNearGlyph: near,
-                           focus: fullscreen ? .fullscreen : .normal,
+                           focus: fullscreen ? .fullscreen : (meeting ? .meeting : .normal),
                            windows: summaries, glyph: engine.isHidden ? nil : engine.body.position)
     }
 
@@ -116,6 +138,8 @@ public final class BodyController: NSObject {
             o.view.onMouseDown = { [weak self] e in self?.mouseDown(e) }
             o.view.onMouseDragged = { [weak self] _ in self?.mouseDragged() }
             o.view.onMouseUp = { [weak self] _ in self?.mouseUp() }
+            o.view.onDragOver = { [weak self] p in self?.engine.acceptsDrop(at: Vec2(p)) ?? false }
+            o.view.onDrop = { [weak self] paths, p in self?.drop(paths, at: p) ?? false }
             return o
         }
         displayLink?.invalidate()
@@ -134,8 +158,12 @@ public final class BodyController: NSObject {
         let (snapshot, fullscreen, summaries) = reader.readAll()
         self.summaries = summaries
         self.fullscreen = fullscreen
+        meeting = MeetingApps.contains(NSWorkspace.shared.frontmostApplication?.localizedName)
         engine.setWorld(snapshot)
         engine.setFullscreen(fullscreen)
+        engine.setMeeting(meeting)
+        engine.setClock(Date())
+        engine.setUserIdle(CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: CGEventType(rawValue: ~0)!))
         engine.reducedMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         if Date().timeIntervalSince(lastWorldReport) >= 1 {
             lastWorldReport = Date()
@@ -166,6 +194,13 @@ public final class BodyController: NSObject {
         wake()
     }
 
+    private func drop(_ paths: [String], at p: CGPoint) -> Bool {
+        let ok = engine.dropped(paths: paths, at: Vec2(p))
+        drain()
+        wake()
+        return ok
+    }
+
     private func mouseDragged() {
         engine.mouseDragged(to: Vec2(NSEvent.mouseLocation))
         wake()
@@ -193,6 +228,7 @@ public final class BodyController: NSObject {
             case let .send(m): onSend?(m)
             case .openHome: onOpenHome?()
             case let .openFile(path): NSWorkspace.shared.open(URL(fileURLWithPath: path))
+            case .preferencesChanged: saveCoexistence()
             }
         }
     }

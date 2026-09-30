@@ -110,7 +110,7 @@ public struct PathFollower: Sendable {
                     if abs(step.from.x - s.position.x) > 3 {
                         return (walk(toward: step.from.x, from: s, allowRun: false), .running)
                     }
-                    guard let wall = world.walls.first(where: { $0.key == key }) else { return (Control(), .failed) }
+                    guard let wall = world.nearestWall(key, to: s.position.y) else { return (Control(), .failed) }
                     c.attachWall = key
                     if s.position.y + 1 < wall.y0 {
                         // A parede começa acima: um pulinho para alcançar.
@@ -141,6 +141,28 @@ public struct PathFollower: Sendable {
                     launched = true
                 }
                 return (c, .running)
+
+            case let .pass(direction):
+                if onSurface(s, step.surface) {
+                    advance()
+                    continue
+                }
+                var c = Control()
+                switch direction {
+                case .left, .right:
+                    // Anda (ou vai de mão em mão) pela emenda; a física troca a superfície.
+                    guard s.support.isGrounded || { if case .ceiling = s.support { return true }; return false }() else {
+                        return (Control(), .failed)
+                    }
+                    c.moveX = direction == .right ? 1 : -1
+                    return (c, .running)
+                case .up, .down:
+                    if abs(step.from.x - s.position.x) > arriveTolerance {
+                        return (walk(toward: step.from.x, from: s, allowRun: false), .running)
+                    }
+                    c.passThrough = true
+                    return (c, .running)
+                }
 
             case .release:
                 if onSurface(s, step.surface) {

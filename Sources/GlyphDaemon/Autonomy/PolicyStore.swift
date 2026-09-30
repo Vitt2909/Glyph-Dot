@@ -37,6 +37,10 @@ public actor PolicyStore {
         policy.decide(key, tool: tool, trusted: trusted, userInitiated: userInitiated)
     }
 
+    public func authorization(_ key: TrustKey, tool: String?) -> Authorization {
+        policy.authorization(key, tool: tool)
+    }
+
     /// Registra aprovação ou recusa. Devolve a mudança de nível, se houve.
     @discardableResult
     public func record(_ key: TrustKey, approved: Bool) -> TrustLevel? {

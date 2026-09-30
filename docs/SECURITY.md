@@ -33,6 +33,11 @@ Inclua: versão/commit, passos para reproduzir, impacto esperado.
 | Mala (viagem) | Levar confiança para uma máquina onde ela não foi ganha | Escada, regras "sempre", histórico e chaves ficam; importar nunca sobrescreve |
 | `shell` | Escalada, vazamento de ambiente | Sandbox: pastas permitidas, sem `sudo`, ambiente limpo, timeout |
 | Disco | Vazamento de segredos | Chaves no Keychain; logs com redação de segredos; casa em 0700 |
+| Arquivos entregues (drop) | Ler além do que você entregou; conteúdo mandar o Glyph agir | Concessão de leitura só dos caminhos soltos, por 10 min; o cérebro que lê não recebe ferramenta nenhuma e o conteúdo vai como dado observado; com cérebro na nuvem, a primeira entrega de cada tipo pede um cartão (recusa: nada sai) |
+| Modo ensaio | Organizar pasta apagar ou sobrescrever | Só mover e renomear, dentro da pasta, nunca por link simbólico, nunca sobre arquivo existente; manifesto por arquivo; desfazer o plano inteiro; aprovar o plano não cobre irreversíveis (cada um pede o próprio cartão) |
+| Rotinas ensinadas | Uma demonstração virar permissão; valor de parâmetro injetar shell | Rascunho só vale com aprovação explícita; primeira execução por conjunto de valores é ensaio; cada passo passa pela política; valores com sintaxe de shell recusados; `sudo` fica de fora |
+| Memória de projetos | Guardar segredo ou conteúdo; memória virar instrução | Só metadados (ramo, commit, nomes de arquivos, códigos de saída, arquivo:linha); nunca saída de terminal nem texto de arquivo; o marcador não é enviado ao cérebro |
+| Convivência e cenas | Personalidade ou pack mexer em permissão ou fingir um evento | `Coexistence` não conhece ferramentas nem política; cenas só tocam com `scene.cue` do `glyphd`, e sinais de segurança não entram em cena |
 | Rede | Telemetria | Nenhuma telemetria. Nada sai da máquina sem o usuário escolher um cérebro na nuvem |
 
 ### Freio

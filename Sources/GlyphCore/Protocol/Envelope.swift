@@ -22,6 +22,12 @@ public enum Message: Sendable, Equatable {
     case agentSpawn(AgentSpawn)
     case agentDespawn(AgentDespawn)
     case diaryReady(DiaryReady)
+    case taskShelf(TaskShelf)
+    case inputDrop(InputDrop)
+    case offerActions(OfferActions)
+    case offerChoice(OfferChoice)
+    case presenceHint(PresenceHint)
+    case sceneCue(SceneCue)
 
     public enum Kind: String, Sendable, CaseIterable {
         case hello
@@ -37,15 +43,22 @@ public enum Message: Sendable, Equatable {
         case agentSpawn = "agent.spawn"
         case agentDespawn = "agent.despawn"
         case diaryReady = "diary.ready"
+        case taskShelf = "task.shelf"
+        case inputDrop = "input.drop"
+        case offerActions = "offer.actions"
+        case offerChoice = "offer.choice"
+        case presenceHint = "presence.hint"
+        case sceneCue = "scene.cue"
 
         /// Quem pode enviar este tipo. `approval.request` só vem do cérebro;
         /// `approval.response` só vem do corpo (app assinado).
         public var allowedSenders: Set<Peer> {
             switch self {
             case .hello: return [.body, .brain]
-            case .worldUpdate, .inputSummon, .inputBrake, .approvalResponse: return [.body]
+            case .worldUpdate, .inputSummon, .inputBrake, .approvalResponse,
+                 .taskShelf, .inputDrop, .offerChoice: return [.body]
             case .bodyGoto, .bodyEmote, .bubbleSay, .approvalRequest,
-                 .taskUpdate, .agentSpawn, .agentDespawn, .diaryReady: return [.brain]
+                 .taskUpdate, .agentSpawn, .agentDespawn, .diaryReady, .offerActions, .presenceHint, .sceneCue: return [.brain]
             }
         }
     }
@@ -65,6 +78,12 @@ public enum Message: Sendable, Equatable {
         case .agentSpawn: return .agentSpawn
         case .agentDespawn: return .agentDespawn
         case .diaryReady: return .diaryReady
+        case .taskShelf: return .taskShelf
+        case .inputDrop: return .inputDrop
+        case .offerActions: return .offerActions
+        case .offerChoice: return .offerChoice
+        case .presenceHint: return .presenceHint
+        case .sceneCue: return .sceneCue
         }
     }
 
@@ -83,6 +102,12 @@ public enum Message: Sendable, Equatable {
         case let .agentSpawn(p): return p
         case let .agentDespawn(p): return p
         case let .diaryReady(p): return p
+        case let .taskShelf(p): return p
+        case let .inputDrop(p): return p
+        case let .offerActions(p): return p
+        case let .offerChoice(p): return p
+        case let .presenceHint(p): return p
+        case let .sceneCue(p): return p
         }
     }
 }
@@ -147,6 +172,12 @@ extension Envelope: Codable {
         case .agentSpawn: message = .agentSpawn(try AgentSpawn(from: decoder))
         case .agentDespawn: message = .agentDespawn(try AgentDespawn(from: decoder))
         case .diaryReady: message = .diaryReady(try DiaryReady(from: decoder))
+        case .taskShelf: message = .taskShelf(try TaskShelf(from: decoder))
+        case .inputDrop: message = .inputDrop(try InputDrop(from: decoder))
+        case .offerActions: message = .offerActions(try OfferActions(from: decoder))
+        case .offerChoice: message = .offerChoice(try OfferChoice(from: decoder))
+        case .presenceHint: message = .presenceHint(try PresenceHint(from: decoder))
+        case .sceneCue: message = .sceneCue(try SceneCue(from: decoder))
         }
     }
 

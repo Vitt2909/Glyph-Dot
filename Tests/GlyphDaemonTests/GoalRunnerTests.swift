@@ -184,3 +184,63 @@ final class GoalRunnerTests: XCTestCase {
         XCTAssertEqual(r?.untrusted, true)
     }
 }
+
+/// Objetos de tarefa e prateleira (proposta 0002, ideia 3).
+final class TaskShelfTests: XCTestCase {
+    static func sh(_ cmd: String, in dir: URL) -> (Int32, String) {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/sh")
+        p.arguments = ["-c", cmd]
+        p.currentDirectoryURL = dir
+        let pipe = Pipe()
+        p.standardOutput = pipe
+        p.standardError = pipe
+        try? p.run(); p.waitUntilExit()
+        return (p.terminationStatus, String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self))
+    }
+
+    func testGoalTaskIsCarriedAsAToolAndCanBeShelved() async throws {
+        let base = FileManager.default.temporaryDirectory.appendingPathComponent("glyph-shelf-\(UUID().uuidString.prefix(6))")
+        let repo = base.appendingPathComponent("vk")
+        try FileManager.default.createDirectory(at: repo, withIntermediateDirectories: true)
+        _ = Self.sh("git init -q -b main && git config user.name t && git config user.email t@t && echo 1 > valor.txt && git add . && git commit -qm inicial", in: repo)
+        let paths = GlyphPaths(support: base.appendingPathComponent("support"))
+        try paths.ensureCasa()
+        let goal = Goal.load(yaml: """
+        - id: testes-verdes
+          descricao: "x"
+          escopo: \(repo.path)
+          sucesso: "grep -q 2 valor.txt"
+          classes_permitidas: [read, compute, local_write]
+        """).goals[0]
+        let channel = FakeChannel(answer: false)
+        let board = BoardStore(url: paths.board)
+        // Cérebro que nunca acerta: a tarefa fica em "precisa de você".
+        let brain = ScriptedBrain { _, _, _ in BrainReply(text: "Hipótese: nada\nnão sei.") }
+        let runner = GoalRunner(paths: paths, brain: brain, policy: PolicyStore(policyURL: nil, trustURL: nil),
+                                history: HistoryStore(url: paths.history), board: board, body: channel,
+                                log: DaemonLog(dir: nil, echo: false), goals: { [goal] })
+        _ = await runner.run(goal)
+
+        let updates = await channel.cues.compactMap { m -> TaskUpdate? in if case let .taskUpdate(u) = m { return u }; return nil }
+        XCTAssertTrue(updates.allSatisfy { $0.object == "chave" }, "tarefa de código: a ferramenta na mão")
+        XCTAssertEqual(updates.first?.state, .doing)
+        XCTAssertEqual(updates.last?.state, .needsYou)
+        XCTAssertNotNil(updates.last?.pending)
+
+        let id = try XCTUnwrap(updates.last?.taskId)
+        let parked = await runner.shelf(id, park: true)
+        XCTAssertEqual(parked?.status, .parked)
+        let lastCue = await channel.cues.last
+        XCTAssertEqual(lastCue, .taskUpdate(parked!.update), "o corpo larga o objeto")
+        let skipped = await runner.run(goal)
+        XCTAssertEqual(skipped, .skipped("na prateleira"), "ninguém mexe numa tarefa estacionada")
+
+        let resumed = await runner.shelf(id, park: false)
+        XCTAssertEqual(resumed?.status, .todo)
+        let again = await runner.shelf(id, park: false)
+        XCTAssertNil(again, "só retoma o que está na prateleira")
+        let missing = await runner.shelf("nao-existe", park: true)
+        XCTAssertNil(missing)
+    }
+}

@@ -22,6 +22,14 @@ public struct PlannedAction: Sendable, Equatable {
 public struct Proposal: Sendable, Equatable {
     public var intent: Intent
     public var action: PlannedAction?
+    /// O evento que disparou, em uma linha (vai para o histórico).
+    public var trigger: String?
+
+    public init(intent: Intent, action: PlannedAction?, trigger: String? = nil) {
+        self.intent = intent
+        self.action = action
+        self.trigger = trigger
+    }
 }
 
 /// Reflexos: regras baratas e determinísticas que transformam eventos em
@@ -48,7 +56,8 @@ public enum Reflexes {
                                 interruptCost: 0.2, actionClass: .compute, scope: root)
             let action = PlannedAction(tool: "shell", input: .object(["command": .string(cmd), "cwd": .string(ShellTool.expand(cwd))]),
                                        summary: "rodar \(cmd) em \(name)", kind: .testRun)
-            return [Proposal(intent: intent, action: action)]
+            let trigger = "`\(cmd)` saiu com código \(code) em \(Explanation.shortPath(ShellTool.expand(cwd)))"
+            return [Proposal(intent: intent, action: action, trigger: trigger)]
         default:
             return []
         }
@@ -100,7 +109,8 @@ public actor AutonomyEngine {
     func consider(_ p: Proposal) async -> HistoryEntry {
         let key = "\(p.intent.summary)|\(p.intent.scope)"
         if let last = recent[key], Date().timeIntervalSince(last) < cooldown {
-            return HistoryEntry(origin: .autonomous, summary: p.intent.summary, outcome: .discarded, detail: "repetida")
+            return HistoryEntry(origin: .autonomous, summary: p.intent.summary, outcome: .discarded, detail: "repetida",
+                                trigger: p.trigger)
         }
         recent[key] = Date()
 
@@ -111,14 +121,17 @@ public actor AutonomyEngine {
         let verdict = IntentScorer.verdict(score)
         log.log("intenção: \(p.intent.summary) S=\(String(format: "%.2f", score)) → \(verdict.rawValue)")
         let base = HistoryEntry(origin: .autonomous, summary: p.intent.summary, actionClass: p.intent.actionClass,
-                                scope: p.intent.scope, tool: p.action?.tool, outcome: .discarded, score: score)
+                                scope: p.intent.scope, tool: p.action?.tool, outcome: .discarded, score: score,
+                                trigger: p.trigger)
+        let scoreText = "pontuação \(String(format: "%.2f", score))"
 
         switch verdict {
         case .discard:
-            return await history.append(base)
+            var e = base; e.detail = "\(scoreText), abaixo de 0,3"
+            return await history.append(e)
         case .note:
             await point(at: p.action, world: w)
-            var e = base; e.outcome = .noted
+            var e = base; e.outcome = .noted; e.detail = "\(scoreText): só aponta abaixo de 0,6"
             return await history.append(e)
         case .act:
             break
@@ -134,10 +147,12 @@ public actor AutonomyEngine {
         switch decision {
         case let .deny(why):
             var e = base; e.outcome = .denied; e.detail = why
+            e.authorization = Authorization(.policy, actionClass: cls, scope: p.intent.scope, note: why)
             return await history.append(e)
         case let .observe(why):
             await point(at: action, world: w)
             var e = base; e.outcome = .observed; e.detail = why
+            e.authorization = await policy.authorization(tkey, tool: action.tool)
             return await history.append(e)
         case .ask, .askTwice:
             let req = ApprovalRequest(action: action.tool, target: action.summary, actionClass: cls,
@@ -150,13 +165,16 @@ public actor AutonomyEngine {
             await policy.record(tkey, approved: ok)
             guard ok else {
                 var e = base; e.outcome = .denied; e.detail = "não aprovado"
+                e.authorization = Authorization(.refused, actionClass: cls, scope: p.intent.scope)
                 return await history.append(e)
             }
-            return await run(action, tool: tool, intent: p.intent, entry: base, announce: true, world: w)
-        case .actAndTell:
-            return await run(action, tool: tool, intent: p.intent, entry: base, announce: true, world: w)
-        case .actSilently:
-            return await run(action, tool: tool, intent: p.intent, entry: base, announce: false, world: w)
+            var e = base
+            e.authorization = Authorization(.card, actionClass: cls, scope: p.intent.scope, at: Date())
+            return await run(action, tool: tool, intent: p.intent, entry: e, announce: true, world: w)
+        case .actAndTell, .actSilently:
+            var e = base
+            e.authorization = await policy.authorization(tkey, tool: action.tool)
+            return await run(action, tool: tool, intent: p.intent, entry: e, announce: decision == .actAndTell, world: w)
         }
     }
 
@@ -177,9 +195,12 @@ public actor AutonomyEngine {
         await body.cue(.bodyEmote(BodyEmote(clip: "work", dot: .trail)))
         var e = entry
         let output: ToolOutput
+        let started = Date()
         do {
             output = try await tool.run(action.input)
+            e.cost = ActionCost(seconds: Date().timeIntervalSince(started))
         } catch {
+            e.cost = ActionCost(seconds: Date().timeIntervalSince(started))
             e.outcome = .failed
             e.detail = "\(error)"
             await policy.recordOutcome(intent.actionClass, predicted: intent.confidence, success: false)
@@ -194,6 +215,7 @@ public actor AutonomyEngine {
         case .testRun:
             if output.isError, let f = FailureParser.first(in: output.text) {
                 e.detail = "\(f.count) falha(s); primeira em \(f.file)\(f.line.map { ":\($0)" } ?? "")"
+                e.evidence = f.short
                 // Aponta o arquivo: segura o alfinete.
                 await body.cue(.bodyEmote(BodyEmote(clip: "point", dot: .alert, sticker: "alfinete")))
                 if announce {
@@ -206,6 +228,7 @@ public actor AutonomyEngine {
                 if announce { await body.cue(.bubbleSay(BubbleSay(text: "ainda falha. veja o terminal."))) }
             } else {
                 e.detail = "passou ao rodar de novo"
+                await body.cue(.sceneCue(SceneCue(event: .testsPassed)))
                 await body.cue(.bodyEmote(BodyEmote(clip: "idle", dot: .steady)))
                 if announce { await body.cue(.bubbleSay(BubbleSay(text: "passou agora. instável?"))) }
             }

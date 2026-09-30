@@ -75,6 +75,8 @@ public struct Control: Sendable, Equatable {
     public var attachWall: WallKey?
     /// Solta da parede ou do teto.
     public var release = false
+    /// Passa para a tela de cima (pendurado no teto) ou de baixo (no chão).
+    public var passThrough = false
 
     public init() {}
 }
@@ -89,6 +91,8 @@ public enum PhysicsEvent: Sendable, Equatable {
     case grabbedCeiling
     case bonked
     case hitScreenEdge
+    /// Atravessou para outra tela.
+    case crossedScreen(from: SurfaceKind, to: SurfaceKind)
 }
 
 /// Física cinemática 2D com passo fixo. Determinística.
@@ -152,6 +156,17 @@ public struct PhysicsSimulator: Sendable {
             }
         }
 
+        // Descer para a tela de baixo, pendurado no teto dela.
+        if c.passThrough, let p = w.verticalPassage(from: kind, x: s.position.x), case let .ceiling(id) = p.to,
+           let ceil = w.ceiling(for: id) {
+            s.position = Vec2(s.position.x.clamped(p.span.lo, p.span.hi), ceil.y - metrics.height)
+            s.velocity = .zero
+            s.support = .ceiling(screen: id)
+            s.coveredBy = nil
+            events.append(.crossedScreen(from: kind, to: p.to))
+            return
+        }
+
         let target = c.moveX.clamped(-1, 1) * speed(c)
         s.velocity.x = approach(s.velocity.x, target, config.groundAccel * dt * (c.flee ? 3 : 1))
         s.velocity.y = 0
@@ -167,6 +182,15 @@ public struct PhysicsSimulator: Sendable {
             s.position = Vec2(nx, seg.y)
             s.coveredBy = nil
             s.lastSurface = kind
+            return
+        }
+        // O chão continua na tela vizinha, na mesma altura: segue andando.
+        if let p = w.sidePassage(from: kind, x0: s.position.x, x1: nx), let seg = w.segment(p.to, x: nx, nearY: s.position.y) {
+            s.position = Vec2(nx, seg.y)
+            s.support = .ground(p.to)
+            s.lastSurface = p.to
+            s.coveredBy = nil
+            events.append(.crossedScreen(from: kind, to: p.to))
             return
         }
         // Uma janela à frente cobriu o ponto onde ele JÁ estava (maximizar,
@@ -279,6 +303,8 @@ public struct PhysicsSimulator: Sendable {
     private func solidLimit(from x0: Double, to x1: Double, y: Double, in w: World) -> Double? {
         for wall in w.walls where wall.solid && y >= wall.y0 - metrics.height && y <= wall.y1 + metrics.height {
             let limit = wall.climbX(halfWidth: metrics.halfWidth)
+            // Um degrau só segura quem está abaixo do topo dele.
+            if wall.ledge != nil, y >= wall.y1 - 0.5 { continue }
             if wall.side < 0, x1 < limit, x0 >= limit - 1 { return limit }
             if wall.side > 0, x1 > limit, x0 <= limit + 1 { return limit }
         }
@@ -298,8 +324,9 @@ public struct PhysicsSimulator: Sendable {
         s.velocity = Vec2(0, c.climb.clamped(-1, 1) * config.climbSpeed)
         s.position.y += s.velocity.y * dt
 
-        // Na borda da tela a subida termina com a cabeça no teto.
-        let top = key.owner.isScreen ? wall.y1 - metrics.height : wall.y1
+        // Na borda da tela a subida termina com a cabeça no teto; num degrau,
+        // com os pés no topo.
+        let top = key.owner.isScreen && wall.ledge == nil ? wall.y1 - metrics.height : wall.y1
         if s.position.y >= top {
             // Chegou em cima: sobe na janela, ou agarra o teto na borda da tela.
             switch key.owner {
@@ -315,7 +342,16 @@ public struct PhysicsSimulator: Sendable {
                     s.position.y = wall.y1
                 }
             case let .screen(id):
-                if let ceil = w.ceiling(for: id), wall.y1 >= ceil.y - 1 {
+                let outer = wall.x + Double(key.side) * metrics.halfWidth
+                if let ledge = wall.ledge, let seg = w.segment(ledge, x: outer, nearY: wall.y1) {
+                    // Degrau: sobe no chão da tela vizinha.
+                    s.position = Vec2(outer, seg.y)
+                    s.support = .ground(seg.kind)
+                    s.lastSurface = seg.kind
+                    s.velocity = .zero
+                    events.append(.mantled(seg.kind))
+                    events.append(.crossedScreen(from: .floor(screen: id), to: seg.kind))
+                } else if let ceil = w.ceiling(for: id), wall.y1 >= ceil.y - 1 {
                     s.position.y = ceil.y - metrics.height
                     s.support = .ceiling(screen: id)
                     s.velocity = .zero
@@ -346,9 +382,31 @@ public struct PhysicsSimulator: Sendable {
             events.append(.lostSupport)
             return
         }
+        let here = SurfaceKind.ceiling(screen: screen)
+        // Subir para a tela de cima, pelo vão entre as duas.
+        if c.passThrough, let p = w.verticalPassage(from: here, x: s.position.x), let seg = w.segments.first(where: { $0.kind == p.to && $0.contains(x: s.position.x, margin: 1) }) {
+            s.position = Vec2(s.position.x.clamped(p.span.lo, p.span.hi), seg.y)
+            s.velocity = .zero
+            s.support = .ground(p.to)
+            s.lastSurface = p.to
+            events.append(.crossedScreen(from: here, to: p.to))
+            return
+        }
         s.velocity = Vec2(c.moveX.clamped(-1, 1) * config.hangSpeed, 0)
-        s.position.x = (s.position.x + s.velocity.x * dt).clamped(ceil.x0 + metrics.halfWidth, ceil.x1 - metrics.halfWidth)
+        // Teto que continua na tela vizinha: a mão passa pela emenda.
+        let right = w.sidePassage(from: here, direction: .right), left = w.sidePassage(from: here, direction: .left)
+        let lo = ceil.x0 + (left != nil ? -metrics.halfWidth : metrics.halfWidth)
+        let hi = ceil.x1 + (right != nil ? metrics.halfWidth : -metrics.halfWidth)
+        s.position.x = (s.position.x + s.velocity.x * dt).clamped(lo, hi)
         s.position.y = ceil.y - metrics.height
+        for p in [right, left].compactMap({ $0 }) where (p.direction == .right ? s.position.x > p.x : s.position.x < p.x) {
+            if case let .ceiling(id) = p.to, let next = w.ceiling(for: id) {
+                s.support = .ceiling(screen: id)
+                s.position.y = next.y - metrics.height
+                events.append(.crossedScreen(from: here, to: p.to))
+            }
+            break
+        }
     }
 
     // MARK: - Mundo mudou

@@ -111,6 +111,27 @@ Onde o Glyph age sozinho: só nos repositórios marcados em `config.yaml`
 (`sensores.repos`). Fora deles, uma falha de teste só faz ele ir olhar o
 terminal, sem falar.
 
+## Por que você fez isso?
+
+Cada entrada do histórico guarda, na hora, o **gatilho** (o evento), a
+**autorização** (escada e nível, regra "sempre", cartão aprovado, objetivo,
+plano, pedido, recusa), o **custo** (tokens, US$, segundos) e a
+**evidência** (arquivo:linha, ramo, relatório). A explicação é montada por
+texto fixo a partir desses campos, sem chamar o cérebro: uma explicação
+gerada depois seria racionalização, não registro. `glyphd porque [id]`;
+clique no Glyph até 2 min depois de uma ação autônoma; cada linha da aba
+Histórico da casa abre a explicação.
+
+## Modo ensaio e rotinas
+
+- **Ensaio** (`glyphd ensaio <pasta>`, ou "organize Downloads"): o plano
+  mostra o que seria movido e renomeado e os casos para você decidir;
+  nada é tocado antes da aprovação. Aprovar o plano cobre só os passos
+  reversíveis. Desfazer volta o plano inteiro.
+- **Rotinas** (`/ensinar`, `/pronto`, `/aprovar`, `/rotina`): aprender não
+  autoriza nada; a primeira execução com novos valores é ensaio; cada
+  passo passa pela escada como qualquer comando.
+
 ## Reversibilidade na prática
 
 - Mudanças de código autônomas sempre num **worktree** em branch

@@ -23,10 +23,36 @@ uso: glyphd <comando>
   install | uninstall       liga/desliga o glyphd como LaunchAgent (macOS)
   pair <Glyph.app>          confia neste build do app (cdhash) para aprovar ações
   historico [n]             o que ele fez (sozinho ou a pedido)
+  porque [id]               por que ele fez isso (a última ação, sem id)
   desfazer <id>             desfaz uma ação que tem inversa
   confianca                 escada de confiança e regras "sempre"
+  ensaio <pasta>            ensaia organizar a pasta: mostra o plano, não mexe em nada
+  ensaio ver <id>           mostra um plano
+  ensaio decidir <id> <caso> <pular|mover|manter_ambos>
+  ensaio aplicar <id> [--sim]
+                            aplica o plano (pede confirmação; --sim: sem perguntar)
+  ensaio desfazer <id>      desfaz o plano inteiro
+  ensaios                   lista os planos
+  entregas [n]              o que ele fez com arquivos que você soltou nele
+  ensinar <nome> [param=valor…]
+                            começa a anotar o que você faz no terminal (com o glyphd rodando)
+  ensinar pronto|cancelar   fecha a demonstração num rascunho, ou esquece
+  rotinas                   rotinas e rascunhos
+  rotina ver|aprovar <nome>
+  rotina rodar <nome> [param=valor…] [--sim]
+                            a primeira vez com novos valores só ensaia; depois roda
+                            passo a passo pela política (--sim: aprova os reversíveis)
+  memoria [projeto]         onde cada projeto parou (fato · origem · data)
+  memoria nota <projeto> "texto"
+                            anota o que falta (nunca é trocado por fato automático)
+  memoria apagar <projeto> <n>
+                            apaga o fato n
+  memoria esquecer <projeto>
+                            apaga o marcador inteiro
   objetivos                 valida e lista o casa/goals.yaml
   quadro                    tarefas dos objetivos e tentativas
+  quadro estacionar <id>    guarda a tarefa na prateleira (ninguém mexe nela)
+  quadro retomar <id>       tira da prateleira
   diario                    escreve o diário das últimas 24 h agora
   mcp                       conecta nos servidores MCP do config e lista as ferramentas
   packs [validar <pasta>]   lista os packs da comunidade (ou valida um pack)
@@ -151,6 +177,9 @@ case "run":
                 try await server.start()
                 await server.attach(autonomy: autonomy)
                 await server.attach(goals: goalRunner)
+                await server.attach(delivery: DeliveryRunner(paths: paths))
+                await server.attach(projects: ProjectTracker(repos: repos, paths: paths))
+                await server.attach(routines: RoutineStore(paths: paths))
                 if teamOn { await goalRunner.setTeam(team) }
                 await server.attach(task: Task {
                     while !Task.isCancelled {
@@ -279,6 +308,19 @@ case "historico":
     }
     done.wait()
 
+case "porque":
+    let wanted = args.first
+    let lines: [String] = blocking {
+        let h = HistoryStore(url: paths.history)
+        let e: HistoryEntry?
+        if let wanted { e = await h.entry(wanted) } else { e = await h.recent(1).last }
+        guard let e else { return [] }
+        let when = String(ISO8601.format(e.ts).prefix(16)).replacingOccurrences(of: "T", with: " ")
+        return ["\(e.id)  \(when)"] + Explanation.lines(e.why).map { "  " + $0 }
+    }
+    if lines.isEmpty { fail(wanted.map { "não achei \($0)" } ?? "histórico vazio") }
+    lines.forEach { print($0) }
+
 case "desfazer":
     guard let id = args.first else { fail("uso: glyphd desfazer <id>") }
     let config = loadConfig()
@@ -301,6 +343,220 @@ case "desfazer":
         done.signal()
     }
     done.wait()
+
+case "memoria":
+    let config = loadConfig()
+    let tracker = ProjectTracker(repos: config.sensores?.repos ?? [], paths: paths)
+    let sub = args.first
+    func show(_ m: ProjectMarker) {
+        print("\(m.name)  (\(m.root))")
+        for (i, f) in m.facts.enumerated() { print("  \(i + 1). \(f.kind.rawValue): \(f.text) · \(f.origin)") }
+        if let l = m.resumeLine { print("  → \(l)") }
+    }
+    func find(_ name: String) -> ProjectMarker {
+        let all = blocking { await tracker.all() }
+        guard let m = all.first(where: { $0.name == name }) else {
+            fail("projeto \(name) não está em sensores.repos (\(all.map(\.name).joined(separator: ", ")))")
+        }
+        return m
+    }
+    switch sub {
+    case nil:
+        let all = blocking { await tracker.all() }
+        if all.isEmpty { print("nenhum projeto: marque pastas em sensores.repos no config.yaml") }
+        all.forEach(show)
+    case "nota"?:
+        guard args.count >= 3 else { fail("uso: glyphd memoria nota <projeto> \"texto\"") }
+        let m = find(args[1])
+        let text = args[2...].joined(separator: " ")
+        if let updated = blocking({ await tracker.note(m.name, text) }) { show(updated) }
+    case "apagar"?:
+        guard args.count >= 3, let n = Int(args[2]) else { fail("uso: glyphd memoria apagar <projeto> <n>") }
+        var m = find(args[1])
+        guard n >= 1, n <= m.facts.count else { fail("não há fato \(n)") }
+        m.facts.remove(at: n - 1)
+        let edited = m
+        blocking { await tracker.save(edited) }
+        show(m)
+    case "esquecer"?:
+        guard args.count >= 2 else { fail("uso: glyphd memoria esquecer <projeto>") }
+        let m = find(args[1])
+        let url = paths.memoria.appendingPathComponent("projetos/\(m.name).md")
+        try? FileManager.default.removeItem(at: url)
+        print("esqueci \(m.name).")
+    case let name?:
+        show(find(name))
+    }
+
+case "ensinar":
+    let store = RoutineStore(paths: paths)
+    do {
+        switch args.first {
+        case "pronto"?:
+            let r = try store.finish()
+            print(r.render())
+            print("rascunho em \(store.mdPath(r)). para ativar: glyphd rotina aprovar \(r.name)")
+        case "cancelar"?:
+            try store.cancel()
+            print("esqueci a demonstração.")
+        case let name?:
+            let s = try store.start(name: name, parameters: RoutineStore.parseValues(Array(args.dropFirst())))
+            print("anotando \(s.name). faça a sequência no terminal (com o hook e o glyphd rodando) e depois: glyphd ensinar pronto")
+        case nil:
+            if let s = store.current() {
+                print("aprendendo \(s.name): \(s.steps.count) comandos anotados")
+                s.steps.forEach { print("  \($0.code == 0 ? "✓" : "✗") \($0.command)  (\($0.cwd))") }
+            } else {
+                fail("uso: glyphd ensinar <nome> [param=valor…]")
+            }
+        }
+    } catch {
+        fail("\(error)")
+    }
+
+case "rotinas":
+    for r in RoutineStore(paths: paths).list() {
+        print("\(r.name)  \(r.approved ? "ativa" : "rascunho")  \(r.steps.count) passos  \(r.parameters.keys.sorted().joined(separator: ", "))")
+    }
+
+case "rotina":
+    let store = RoutineStore(paths: paths)
+    guard args.count >= 2 else { fail("uso: glyphd rotina ver|aprovar|rodar <nome>") }
+    let name = args[1]
+    do {
+        switch args[0] {
+        case "ver":
+            guard let r = store.load(name) else { fail("não conheço \(name)") }
+            print(r.render())
+        case "aprovar":
+            let r = try store.approve(name)
+            blocking { _ = await HistoryStore(url: paths.history).append(HistoryEntry(origin: .user, summary: "aprovou a rotina \(r.name)",
+                                                                                     outcome: .done, authorization: Authorization(.request))) }
+            print("\(r.name): rotina ativa.")
+        case "rodar":
+            let values = RoutineStore.parseValues(Array(args.dropFirst(2)))
+            let yes = args.contains("--sim")
+            guard let r = store.load(name) else { fail("não conheço \(name)") }
+            guard r.approved else { fail("\(name) ainda é rascunho: glyphd rotina aprovar \(name)") }
+            if !r.wasRehearsed(values) {
+                let steps = try store.rehearse(name, values: values)
+                print("ensaio (nada foi executado):")
+                steps.forEach { print("  `\($0.command)` em \($0.cwd) · \($0.actionClass.rawValue)\($0.forbidden ? " (proibido: fica de fora)" : "")") }
+                print("rode de novo para executar.")
+                break
+            }
+            let config = loadConfig()
+            guard let shell = Runtime.tools(config)["shell"] else { fail("sem shell") }
+            let policy = PolicyStore(policyURL: paths.policy, trustURL: paths.trust)
+            let history = HistoryStore(url: paths.history)
+            let result = try blocking { () -> Result<RoutineStore.RunResult, Error> in
+                do {
+                    return .success(try await store.run(name, values: values, decide: { s in
+                        await policy.decide(TrustKey(s.actionClass, Scope.normalize(ShellTool.expand(s.cwd))), tool: "shell",
+                                            trusted: true, userInitiated: true)
+                    }, approve: { s, twice in
+                        // Irreversível sempre pergunta, mesmo com --sim.
+                        if yes, !s.isIrreversible { return true }
+                        for _ in 0..<(twice ? 2 : 1) {
+                            FileHandle.standardError.write(Data("rodar `\(s.command)` [\(s.actionClass.rawValue)]? (s/N) ".utf8))
+                            guard readLine()?.lowercased().hasPrefix("s") == true else { return false }
+                        }
+                        return true
+                    }, exec: { s in
+                        print("→ \(s.command)")
+                        let out = try await shell.run(.object(["command": .string(s.command), "cwd": .string(ShellTool.expand(s.cwd))]))
+                        await history.append(HistoryEntry(origin: .user, summary: "rotina \(name): \(s.command)", actionClass: s.actionClass,
+                                                          tool: "shell", outcome: out.isError ? .failed : .done,
+                                                          trigger: "glyphd rotina rodar \(name)",
+                                                          authorization: Authorization(.request, actionClass: s.actionClass)))
+                        return out
+                    }))
+                } catch { return .failure(error) }
+            }.get()
+            print(result.text)
+        default:
+            fail("uso: glyphd rotina ver|aprovar|rodar <nome>")
+        }
+    } catch {
+        fail("\(error)")
+    }
+
+case "entregas":
+    let n = Int(args.first ?? "") ?? 10
+    let dir = paths.entregas
+    let files = ((try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []).filter { $0.hasSuffix(".md") }.sorted()
+    if files.isEmpty { print("nenhuma entrega ainda") }
+    for f in files.suffix(n).reversed() {
+        let first = (try? String(contentsOf: dir.appendingPathComponent(f), encoding: .utf8))?.split(separator: "\n").first ?? ""
+        print("\(dir.appendingPathComponent(f).path)\n    \(first.replacingOccurrences(of: "# ", with: ""))")
+    }
+
+case "ensaios":
+    for p in RehearsalStore(paths: paths).list() {
+        print("\(p.id)  \(p.status.rawValue)  \(p.title): \(p.summary)")
+    }
+
+case "ensaio":
+    let store = RehearsalStore(paths: paths)
+    let sub = args.first ?? ""
+    func show(_ p: RehearsalPlan) { p.preview(limit: 60).forEach { print($0) } }
+    do {
+        switch sub {
+        case "ver":
+            guard args.count >= 2 else { fail("uso: glyphd ensaio ver <id>") }
+            show(try store.load(args[1]))
+        case "decidir":
+            guard args.count >= 4, let choice = PlanDecision.Choice(rawValue: args[3]) else {
+                fail("uso: glyphd ensaio decidir <id> <caso> <pular|mover|manter_ambos>")
+            }
+            show(try store.decide(args[1], decision: args[2], choice: choice))
+        case "aplicar":
+            guard args.count >= 2 else { fail("uso: glyphd ensaio aplicar <id> [--sim]") }
+            let plan = try store.load(args[1])
+            show(plan)
+            if !plan.pendingDecisions.isEmpty {
+                print("\(plan.pendingDecisions.count) caso(s) sem decisão ficam como estão.")
+            }
+            if !args.contains("--sim") {
+                FileHandle.standardError.write(Data("aplicar? (s/N) ".utf8))
+                guard readLine()?.lowercased().hasPrefix("s") == true else { fail("nada feito.") }
+            }
+            let id = plan.id
+            let r = try blocking { () -> Result<RehearsalStore.ApplyResult, Error> in
+                do { return .success(try await store.apply(id)) } catch { return .failure(error) }
+            }.get()
+            print(r.text)
+            r.skipped.forEach { print("  - " + $0) }
+            blocking {
+                _ = await HistoryStore(url: paths.history).append(HistoryEntry(
+                    origin: .user, summary: "\(plan.title) (plano \(id))", actionClass: .localWrite, scope: plan.root,
+                    tool: "aplicar_plano", outcome: .done, detail: r.text,
+                    inverse: HistoryEntry.Inverse(tool: "desfazer_plano", input: .object(["plano": .string(id)]), summary: "desfazer o plano \(id)"),
+                    authorization: Authorization(.plan, actionClass: .localWrite, scope: plan.root, at: Date(), ref: id)))
+            }
+        case "desfazer":
+            guard args.count >= 2 else { fail("uso: glyphd ensaio desfazer <id>") }
+            let r = try store.undo(args[1])
+            print(r.text)
+            r.skipped.forEach { print("  - " + $0) }
+            let summary = "desfazer o plano \(args[1])"
+            blocking { _ = await HistoryStore(url: paths.history).append(HistoryEntry(origin: .user, summary: summary, outcome: .undone,
+                                                                                     authorization: Authorization(.request))) }
+        case "":
+            fail("uso: glyphd ensaio <pasta>")
+        default:
+            let config = loadConfig()
+            let scope = RehearsalScope(folders: config.ferramentas?.organizar?.pastas ?? ["~/Downloads"])
+            guard scope.allows(sub) else {
+                fail("só organizo \(scope.folders.map(Explanation.shortPath).joined(separator: ", ")) (ferramentas.organizar.pastas no config.yaml)")
+            }
+            let plan = try store.prepare(folder: sub)
+            show(plan)
+            print("\nnada foi mexido. para aplicar: glyphd ensaio aplicar \(plan.id)")
+        }
+    } catch {
+        fail("\(error)")
+    }
 
 case "confianca":
     let done = DispatchSemaphore(value: 0)
@@ -328,13 +584,25 @@ case "objetivos":
     for e in errors { print("ERRO: \(e)") }
     exit(errors.isEmpty ? 0 : 1)
 
+case "quadro" where ["estacionar", "retomar"].contains(args.first ?? ""):
+    guard args.count >= 2 else { fail("uso: glyphd quadro \(args[0]) <id>") }
+    let park = args[0] == "estacionar", id = args[1]
+    let t: BoardTask? = blocking {
+        guard let t = await BoardStore(url: paths.board).shelf(id, park: park) else { return nil }
+        await HistoryStore(url: paths.history).append(HistoryEntry(origin: .user, summary: "\(park ? "estacionou" : "retomou") \(t.title)",
+                                                                   outcome: .done, authorization: Authorization(.request)))
+        return t
+    }
+    guard let t else { fail("não dá: \(id) não existe ou já está \(park ? "fechada ou na prateleira" : "fora da prateleira")") }
+    print("[\(t.status.rawValue)] \(t.title)")
+
 case "quadro":
     let done = DispatchSemaphore(value: 0)
     Task.detached {
         let tasks = await BoardStore(url: paths.board).tasks
         if tasks.isEmpty { print("quadro vazio") }
         for t in tasks.suffix(30) {
-            print("[\(t.status.rawValue)] \(t.title)\(t.branch.map { " (\($0))" } ?? "")")
+            print("\(t.id)  [\(t.status.rawValue)] \(t.title)\(t.branch.map { " (\($0))" } ?? "")")
             for (i, a) in t.attempts.enumerated() { print("    \(i + 1). \(a.success ? "✓" : "✗") \(a.hypothesis)") }
             if let n = t.note { print("    \(n)") }
         }
@@ -381,7 +649,11 @@ case "packs":
             problems.append("sticker \(id) é sinal de segurança: será ignorado")
         }
         if let m = p.manifest {
-            print("\(m.nome) \(m.versao) por \(m.autor) (\(m.licenca)): \(p.clips.clips.count) clipes, \(p.stickers.count) stickers")
+            print("\(m.nome) \(m.versao) por \(m.autor) (\(m.licenca)): \(p.clips.clips.count) clipes, \(p.stickers.count) stickers, \(p.scenes.count) cenas")
+        }
+        for s in p.scenes {
+            let missing = Set(s.beats.map(\.clip)).subtracting(p.clips.clips.keys).sorted()
+            print("  cena \(s.id) em \(s.event.rawValue)" + (missing.isEmpty ? "" : " (usa do pack padrão: \(missing.joined(separator: ", ")))"))
         }
         for e in problems { print("· \(e)") }
         exit(problems.isEmpty && p.manifest != nil ? 0 : 1)

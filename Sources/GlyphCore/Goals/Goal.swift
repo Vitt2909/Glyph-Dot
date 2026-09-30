@@ -231,7 +231,12 @@ public struct ModelPrice: Sendable, Equatable, Codable {
 
 /// Uma tarefa no quadro da casa.
 public struct BoardTask: Sendable, Equatable, Codable, Identifiable {
-    public enum Status: String, Sendable, Codable { case todo, doing, done, blocked, needsYou = "precisa_de_voce" }
+    public enum Status: String, Sendable, Codable {
+        case todo, doing, done, blocked
+        case needsYou = "precisa_de_voce"
+        /// Na prateleira da casa: ninguém mexe até você retomar.
+        case parked = "estacionada"
+    }
 
     /// Uma tentativa, com a hipótese registrada (para não repetir a mesma).
     public struct Attempt: Sendable, Equatable, Codable {
@@ -274,4 +279,21 @@ public struct BoardTask: Sendable, Equatable, Codable, Identifiable {
 
     public static let maxApproaches = 3
     public var isOpen: Bool { status == .todo || status == .doing }
+    /// Dá para guardar na prateleira (e depois retomar).
+    public var canPark: Bool { status != .done && status != .parked }
+
+    /// Como a tarefa aparece no corpo: o objeto que o Glyph carrega.
+    public var update: TaskUpdate {
+        let state: TaskUpdate.State
+        switch status {
+        case .todo, .doing: state = .doing
+        case .done: state = .done
+        case .blocked, .needsYou: state = .needsYou
+        case .parked: state = .parked
+        }
+        let n = attempts.count
+        return TaskUpdate(taskId: id, step: n == 0 ? "começando" : "tentativa \(n)",
+                          progress: min(Double(n) / Double(Self.maxApproaches), 1), object: "chave", title: title,
+                          state: state, pending: state == .needsYou ? note : nil, result: state == .done ? note : nil)
+    }
 }

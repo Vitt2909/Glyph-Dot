@@ -307,6 +307,38 @@ do {
     try write(svg, out.appendingPathComponent("equipe.svg"))
 }
 
+// MARK: - Estúdio (docs/estudio/padrao.js)
+
+do {
+    // O estúdio web abre direto do disco: os clipes e stickers do pack padrão
+    // vão num script clássico, sem fetch.
+    let enc = JSONEncoder()
+    enc.outputFormatting = [.sortedKeys]
+    var clipsJS: [String] = []
+    for id in clips.clips.keys.sorted() {
+        clipsJS.append("\"\(id)\":" + String(decoding: try enc.encode(clips[id]!), as: UTF8.self))
+    }
+    var stickersJS: [String] = []
+    for id in stickers.keys.sorted() {
+        stickersJS.append("\"\(id)\":" + String(decoding: try enc.encode(stickers[id]!), as: UTF8.self))
+    }
+    let js = """
+    // Gerado por `swift run glyph-art` a partir de Packs/default. Não edite à mão.
+    globalThis.GlyphPadrao = {
+    clips: {
+    \(clipsJS.joined(separator: ",\n"))
+    },
+    stickers: {
+    \(stickersJS.joined(separator: ",\n"))
+    }
+    };
+
+    """
+    let dir = root.appendingPathComponent("docs/estudio", isDirectory: true)
+    try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+    try write(js, dir.appendingPathComponent("padrao.js"))
+}
+
 // MARK: - Pack de exemplo da comunidade
 
 do {

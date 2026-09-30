@@ -217,12 +217,14 @@ public actor Team {
             switch verdict {
             case .approved:
                 await say("aprovado.", as: "auditor")
+                await body.cue(.sceneCue(SceneCue(event: .auditorApproved)))
                 await history.append(HistoryEntry(origin: .autonomous, summary: "\(label): Auditor aprovou",
                                                   outcome: .done, detail: hypothesis))
                 return BuildOutcome(approved: true, hypothesis: hypothesis, vetoes: vetoes, usage: usage, steps: steps)
             case let .veto(reason):
                 vetoes.append(reason)
                 await say("não.", as: "auditor")
+                await body.cue(.sceneCue(SceneCue(event: .auditorVeto)))
                 await history.append(HistoryEntry(origin: .autonomous, summary: "\(label): veto do Auditor (rodada \(round))",
                                                   outcome: .failed, detail: reason))
                 log.log("veto do Auditor: \(reason)")
@@ -321,6 +323,15 @@ public struct DelegateTool: Tool {
     public var place: ToolPlace { .none }
     public func summarize(_ input: JSONValue) -> String {
         "chamar \(input["role"]?.stringValue ?? "?"): \(input["task"]?.stringValue ?? "")"
+    }
+
+    /// Pesquisa vira um livro na mão; proposta de design, uma folha.
+    public func taskObject(_ input: JSONValue, output: ToolOutput) -> TaskUpdate? {
+        guard let role = input["role"]?.stringValue.flatMap(SpecialistRole.init(rawValue:)) else { return nil }
+        let task = input["task"]?.stringValue ?? ""
+        return TaskUpdate(taskId: "delegar-" + String(UUID().uuidString.prefix(6)).lowercased(), step: "concluído", progress: 1,
+                          object: role == .researcher ? "livro" : "folha", title: String(task.prefix(60)),
+                          state: output.isError ? .failed : .done)
     }
 
     public func run(_ input: JSONValue) async throws -> ToolOutput {

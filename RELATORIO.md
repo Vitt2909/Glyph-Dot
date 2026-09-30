@@ -1,3 +1,49 @@
+# Relatório — Proposta 0002 (pós-M6)
+
+Branch: `claude/proposta-0002-proximas-ideias` (sobre a `main`), PR #11.
+Nove ideias, um commit cada; detalhes e o que ficou de fora em
+[`docs/propostas/0002-proximas-ideias.md`](docs/propostas/0002-proximas-ideias.md#implementação).
+
+`swift test` em Linux: **370 testes** verdes; `Scripts/fumaca.sh` agora
+também ensaia, aplica e desfaz um plano de verdade; `node
+Scripts/estudio-check.mjs` confere o estúdio contra o motor (job novo no CI).
+O corpo compila no CI de macOS; **ainda não foi visto rodando num Mac**.
+
+## Feito
+
+| Ideia | Onde | Aceite |
+|---|---|---|
+| Por que você fez isso? | `Explanation`, `HistoryEntry`, `glyphd porque` | `WhyTests`, `ExplanationTests` |
+| Monitores | `World` (paredes parciais, `Passage`), `Physics`, `NavGraph` | `MultiScreenTests` |
+| Modo ensaio | `FileOrganizer`, `RehearsalStore`, `glyphd ensaio` | `RehearsalTests` (disco real: ensaiar não mexe, aplicar, desfazer volta tudo), fumaça |
+| Objetos de tarefa | `TaskObject`, `task.update`, `task.shelf`, casa | `TaskObjectTests`, `TaskShelfTests` |
+| Entregar arquivos | `Delivery`, `input.drop`/`offer.*`, drop no `GlyphView` | `DeliveryTests` (cartão de nuvem, cérebro sem ferramentas) |
+| Convivência | `Coexistence`, `presence.hint`, `shell.start` | `CoexistenceTests`, `PresenceTests`; hook testado num zsh de verdade |
+| Retomada | `ProjectMarker`, `ProjectTracker`, `glyphd memoria` | `ProjectTrackerTests` (git real) |
+| Ensinar mostrando | `Routine`, `RoutineStore`, `RoutineTool`, `/ensinar` | `RoutineTests`, `RoutineStoreTests` |
+| Estúdio | `Scene`, `scene.cue`, `docs/estudio/` | `SceneTests`, `StudioReferenceTests`, `estudio-check.mjs`, roteiro no Chromium (desktop e celular, pack baixado passa no `glyphd packs validar`) |
+
+## Achados no caminho
+
+- As prévias SVG dos clipes do Modo Diversão nunca tinham sido commitadas, e
+  o CI não pegava arquivo novo: corrigido (arte nova sem commit agora falha).
+- A navegação propunha "cair" por uma borda de tela sólida quando havia
+  outra tela: corrigido.
+- O servidor processa cada linha do socket num `Task`: duas linhas enviadas
+  juntas podem chegar fora de ordem. Deixar sequencial travaria o servidor
+  (o chamado espera o agente inteiro, e a aprovação precisa passar no meio).
+  Documentado no protocolo; um teste que dependia da ordem foi corrigido.
+
+## Decisões que precisam de gente
+
+- As seis da proposta 0002 foram tomadas por mim (lista na proposta); vale
+  revisar, principalmente o cartão de nuvem uma vez por tipo e a casa que
+  "pede, não escreve".
+- Ver num Mac: arrastar arquivo sobre o Glyph (o painel só aceita mouse perto
+  dele), travessia entre monitores, botões da prateleira.
+
+---
+
 # Entrega — M0 a M6
 
 Todos os marcos do plano estão implementados, cada um num branch empilhado
@@ -56,6 +102,8 @@ swift build -c release
 - Ativar o *private vulnerability reporting* do GitHub.
 - Conta Apple Developer (Developer ID + notarização).
 - ADR 0003 (app sem App Sandbox) continua **proposta**.
+- Proposta 0002 (próximas ideias, pós-M6) aguarda revisão: seis decisões
+  no fim do documento.
 - Proposta 0001 (runner remoto) aguarda revisão: mexe na fronteira de
   confiança.
 - Validar o M1 num Mac: rodar, medir CPU em repouso, gravar o GIF.

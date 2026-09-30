@@ -59,6 +59,42 @@ glyphd packs                            # lista o que está instalado
 Reabra o Glyph.app. Pastas que são link simbólico não são carregadas: o
 pack precisa morar dentro da casa.
 
+## Cenas
+
+Um pack pode trazer `scenes/*.json`: pequenas cenas entre o Glyph e os
+especialistas, ligadas a um **evento real**. O pack fornece a encenação,
+nunca o evento: a cena só toca quando o `glyphd` manda `scene.cue`.
+
+```json
+{
+  "id": "veto-conversa",
+  "event": "auditor.veto",
+  "beats": [
+    {"actor": "auditor", "at": 0, "clip": "point", "bubble": "olha isso."},
+    {"actor": "builder", "at": 0.8, "clip": "look", "bubble": "hm."}
+  ]
+}
+```
+
+| Campo | Regra |
+|---|---|
+| `event` | `auditor.veto`, `auditor.aprovou`, `teste.passou`, `entrega.pronta`, `rotina.aprovada` |
+| `beats[].actor` | `glyph` ou um papel (`builder`, `researcher`, `designer`, `auditor`). Especialista só atua se estiver mesmo em cena |
+| `beats[].at` | 0…20 s; até 24 batidas |
+| `beats[].clip` | Um clipe do pack ou do padrão; nunca `await`, `error`, `alert` |
+| `beats[].bubble` | Até 40 caracteres |
+| `beats[].sticker` | Nunca `cartao`, `pausa`, `escudo` |
+
+Uma cena nunca toca por cima de um pedido de aprovação.
+
+## Estúdio
+
+`docs/estudio/index.html` abre direto no navegador (sem Swift, sem Mac):
+poses por articulação, linha do tempo, prévia "em dois", cenas com
+especialistas, e um `.zip` do pack pronto para `glyphd packs validar`. As
+contas da prévia são as do motor (conferidas por
+`node Scripts/estudio-check.mjs`).
+
 ## Prévia
 
 `Examples/pack-exemplo/` é um pack completo. O `swift run glyph-art` gera

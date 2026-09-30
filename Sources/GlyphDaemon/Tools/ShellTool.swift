@@ -48,7 +48,7 @@ public struct ShellTool: Tool {
         Scope.normalize(Self.expand(input["cwd"]?.stringValue ?? config.allowedRoots.first ?? "~"))
     }
 
-    static func expand(_ path: String) -> String {
+    public static func expand(_ path: String) -> String {
         let p = path.hasPrefix("~") ? NSHomeDirectory() + path.dropFirst() : path
         return URL(fileURLWithPath: p).standardizedFileURL.resolvingSymlinksInPath().path
     }
