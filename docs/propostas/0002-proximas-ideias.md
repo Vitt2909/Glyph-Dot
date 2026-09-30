@@ -1,13 +1,15 @@
 # Proposta 0002 — Próximas ideias (depois do M6)
 
-- Estado: **proposta, aguardando revisão humana**
+- Estado: **primeira fatia de cada ideia implementada** (menos "entre
+  aparelhos"), aguardando revisão humana
 - Data: 2026-09-30
 - Mexe em: protocolo (mensagens novas), histórico, casa, packs; nenhuma
   mudança na escada de confiança nem na trava de irreversíveis
 
-Nada aqui está implementado. Cada ideia traz o que **já existe** no código,
-o que **falta**, a **primeira fatia** e o que **não pode acontecer**. No fim,
-uma ordem sugerida e as decisões que precisam de gente.
+Cada ideia traz o que **já existia** no código, o que **faltava**, a
+**primeira fatia** e o que **não pode acontecer**. O que foi feito, o que
+ficou de fora e as decisões que tomei estão em [Implementação](#implementação),
+no fim.
 
 Regras que valem para todas (são os princípios do README, não regras novas):
 
@@ -310,3 +312,36 @@ testes no `GlyphCore` (rodam no Linux).
 - Qualquer mudança na escada de confiança ou na trava de irreversíveis.
 - Automação visual de aplicativos (clicar em interfaces alheias).
 - Um cérebro fora do Mac (ver 0001).
+
+---
+
+## Implementação
+
+Tudo no mesmo PR, um commit por ideia, com testes (`swift test`: 370) e o
+`Scripts/fumaca.sh` rodando o `glyphd` de verdade.
+
+| Ideia | Feito | Ficou de fora |
+|---|---|---|
+| 8. Por que você fez isso? | Gatilho, autorização, custo e evidência no histórico; `glyphd porque`; clique até 2 min depois; casa | Entradas do time (Builder/Auditor) ainda sem autorização |
+| 9. Monitores | Emenda contínua (chão e teto), degrau entre alturas diferentes com parede parcial, telas empilhadas; navegação não cai por borda sólida | Entre aparelhos (pede proposta 0003); ver num Mac de verdade |
+| 4. Modo ensaio | Planejador de pasta, casos para decidir, manifesto, desfazer do plano inteiro, ferramentas para o cérebro, `glyphd ensaio` | Decidir caso a caso pelo corpo (hoje: `glyphd ensaio decidir`; sem decisão = não mexe) |
+| 3. Objetos de tarefa | `task.update` com objeto/estado/pendência/resultado/arquivo; clique mostra; prateleira (`task.shelf`, botões na casa, CLI) | Objeto em todo chamado (só ferramentas que declaram) |
+| 1. Entregar arquivos | `input.drop` → concessão → `offer.actions` ao redor do objeto → `offer.choice`; PDF/texto, imagem, pasta; cérebro sem ferramentas; cartão de nuvem | "Explicar" imagem sem texto pede cérebro com visão; drop no Mac não testado ao vivo |
+| 6. Convivência | Reunião → casa; build → explora (`shell.start` + `presence.hint`); brincadeira espontânea rara que aprende com dispensas; lugar preferido | Detectar compartilhamento de tela (hoje: app de reunião na frente) |
+| 5. Retomada | Marcador por projeto com fatos (git, terminal, autonomia), notas suas, linha ao voltar, `glyphd memoria` | Frase escrita pelo cérebro; editar na casa |
+| 2. Ensinar mostrando | Sessão pelo hook, rascunho com parâmetros e classes, aprovação, ensaio obrigatório, política por passo, ferramenta `rotina` | Automação visual; detectar parâmetros sozinho (hoje: sugestão) |
+| 7. Estúdio | Cenas em packs ligadas a eventos reais (`scene.cue`); editor web com prévia fiel ao motor e `.zip` do pack | Editor de stickers; prévia SVG oficial só pelo `glyph-art` |
+
+### Decisões que tomei (as seis perguntas)
+
+1. **A casa pede, não escreve.** A prateleira é um pedido ao `glyphd`
+   (`task.shelf`); memória se edita no arquivo ou com `glyphd memoria`.
+2. **Aprovar um plano cobre só os reversíveis.** Irreversível dentro do
+   plano pede o próprio cartão.
+3. **Drop com cérebro na nuvem:** cartão na primeira entrega de cada tipo,
+   por execução do `glyphd`. Recusou, nada sai.
+4. **Retenção da memória de projetos:** fatos automáticos são recalculados
+   a cada atividade; suas notas ficam até você apagar. Sem prazo automático.
+5. **Estúdio:** página estática em `docs/estudio/`, sem servidor.
+6. **Entre aparelhos:** fica para a proposta 0003, depois de ver o corpo
+   num Mac de verdade.

@@ -208,8 +208,11 @@ final class DeliveryTests: XCTestCase {
         body.send(.inputDrop(InputDrop(paths: [pdf])))
         XCTAssertTrue(body.waitFor { _ in self.offer(body) != nil })
         let id = offer(body)!.offerId
-        body.send(.offerChoice(OfferChoice(offerId: id, actionId: "mapear"))) // não foi oferecida
+        // Uma de cada vez: o servidor não garante a ordem de linhas enviadas juntas.
+        body.send(.offerChoice(OfferChoice(offerId: id, actionId: "mapear"))) // não foi oferecida: a concessão acaba
+        try await Task.sleep(nanoseconds: 300_000_000)
         body.send(.offerChoice(OfferChoice(offerId: id, actionId: "resumir"))) // a concessão já acabou
+        try await Task.sleep(nanoseconds: 300_000_000)
         body.send(.offerChoice(OfferChoice(offerId: "inventada", actionId: "resumir")))
         try await Task.sleep(nanoseconds: 300_000_000)
         XCTAssertEqual(calls.value, 0)

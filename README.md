@@ -187,6 +187,37 @@ e o freio, uma aprovação ou uma tarefa encerram a brincadeira na hora. Veja
 Detalhes em [`docs/ECOSYSTEM.md`](docs/ECOSYSTEM.md). Exemplos de agente em
 [`Examples/agentes/`](Examples/agentes/).
 
+### Trabalho que dá para ver ([proposta 0002](docs/propostas/0002-proximas-ideias.md))
+
+- **Por que você fez isso?** Clique nele logo depois de uma ação sozinho, ou
+  `glyphd porque [id]`: gatilho, autorização, custo e evidência, registrados
+  na hora (nunca uma explicação inventada depois).
+- **Modo ensaio.** "Organize Downloads" (ou `glyphd ensaio ~/Downloads`)
+  mostra *32 arquivos seriam movidos, 4 nomes mudariam, 3 casos precisam de
+  decisão* antes de tocar em qualquer coisa. Nunca apaga nem sobrescreve;
+  desfazer volta o plano inteiro.
+- **Entregar arquivos.** Solte um PDF, imagem ou pasta sobre ele: ele segura
+  o objeto e mostra as ações ao redor (resumir, tarefas, comparar · explicar,
+  texto, referência · mapear, duplicados, organizar). Ele lê só o que você
+  entregou; o cérebro que lê não tem ferramentas.
+- **Objetos de tarefa.** A chave, o livro, a pasta, o envelope na mão dele
+  são tarefas de verdade; clique para ver progresso ou resultado. A
+  prateleira da casa guarda uma tarefa para depois
+  (`glyphd quadro estacionar|retomar`).
+- **Retomada.** Nas pastas de `sensores.repos`, ele guarda onde você parou
+  (`casa/memoria/projetos/<nome>.md`, só metadados) e, quando você volta
+  horas depois, diz numa linha. `glyphd memoria`.
+- **Ensinar mostrando.** `/ensinar relatorio cliente=acme`, faça no terminal,
+  `/pronto`, `/aprovar relatorio`, e depois `/rotina relatorio cliente=beta`
+  (a primeira vez só ensaia).
+- **Convivência.** Em reunião ele vai para casa; com build rodando, explora;
+  brincadeiras que você dispensa ficam raras (três seguidas: uma semana de
+  folga). Tudo local, sem IA.
+- **Monitores.** Anda pela emenda entre telas lado a lado, escala o degrau
+  entre telas de alturas diferentes e passa entre telas empilhadas.
+- **Estúdio.** [`docs/estudio/`](docs/estudio/index.html): crie clipes e cenas
+  no navegador e baixe um pack pronto para `glyphd packs validar`.
+
 ## Instalação
 
 Ainda não há binário assinado. Para o app abrir sem aviso do Gatekeeper é

@@ -54,7 +54,13 @@ ignorados, para permitir extensões compatíveis.
 | cérebro → corpo | `body.emote` | `clip`, `dot`? (modo do Dot), `sticker`? (id de um sticker do pack para segurar), `agentId`? (especialista) |
 | cérebro → corpo | `bubble.say` | `text`, `durationSec` (0 < d ≤ 30, padrão 4), `agentId`? (quem fala: especialista) |
 | cérebro → corpo | `approval.request` | `action`, `target`, `class`, `why`, `timeoutSec` (0 < t ≤ 3600) |
-| cérebro → corpo | `task.update` | `taskId`, `step`, `progress` (0…1), `budgetRemaining`? |
+| cérebro → corpo | `task.update` | `taskId`, `step`, `progress` (0…1), `budgetRemaining`?, `object`? (sticker que o Glyph carrega enquanto a tarefa existe), `title`?, `state`? (`doing`\|`done`\|`needs_you`\|`parked`\|`failed`), `pending`?, `result`?, `open`? (arquivo que o clique no objeto abre, caminho absoluto) |
+| corpo → cérebro | `task.shelf` | `taskId`, `park` (bool): guardar a tarefa na prateleira da casa, ou retomá-la |
+| corpo → cérebro | `input.drop` | `paths` [string] (1 a 20, absolutos): arquivos soltos sobre o Glyph. Só os caminhos |
+| cérebro → corpo | `offer.actions` | `offerId`, `object` (sticker), `title`, `actions` [{`id`, `label` (até 40), `sticker`?}] (1 a 4), `timeoutSec` |
+| corpo → cérebro | `offer.choice` | `offerId`, `actionId`? (ausente: dispensou) |
+| cérebro → corpo | `presence.hint` | `state` (`build`\|`clear`), `untilSec` (0 < t ≤ 3600): só encenação (ex.: build rodando, pode explorar) |
+| cérebro → corpo | `scene.cue` | `event` (`auditor.veto`\|`auditor.aprovou`\|`teste.passou`\|`entrega.pronta`\|`rotina.aprovada`): aconteceu de verdade; o corpo toca a cena do pack, se houver |
 | cérebro → corpo | `agent.spawn` | `agentId`, `role` (`builder`\|`researcher`\|`designer`\|`auditor`) |
 | cérebro → corpo | `agent.despawn` | `agentId` |
 | cérebro → corpo | `diary.ready` | `path` |
@@ -74,13 +80,19 @@ Classes de ação (`class`): `read`, `compute`, `local_write`, `network_read`,
 2. O remetente precisa estar autorizado para o tipo:
    - `approval.request` **só** é aceito vindo do cérebro;
    - `approval.response` **só** é aceito vindo do corpo (app assinado);
-   - `world.*` e `input.*` só vêm do corpo; `body.*`, `bubble.*`, `task.*`,
-     `agent.*` e `diary.*` só vêm do cérebro.
+   - `world.*`, `input.*`, `task.shelf` e `offer.choice` só vêm do corpo;
+     `body.*`, `bubble.*`, `task.update`, `agent.*`, `diary.*`,
+     `offer.actions`, `presence.*` e `scene.*` só vêm do cérebro.
 3. `hello.role` precisa ser igual ao papel autenticado.
 4. `approval.request` com `class: financial` é rejeitado: a classe é proibida.
 5. Sem resposta a um `approval.request` até `timeoutSec` → **negar**.
 6. O corpo mostra no máximo ~40 caracteres por bolha (`displayText` corta
    com `…`) e uma bolha por vez.
+7. `task.update.object` e `offer.actions.object` precisam ser um sticker do
+   pack; os sinais de segurança (`cartao`, `pausa`, `escudo`) são ignorados
+   como objeto. Sem tarefa, sem objeto.
+8. Linhas enviadas juntas pelo mesmo par podem ser processadas fora de
+   ordem: quem depende de ordem espera a resposta antes de mandar a próxima.
 
 ## Handshake
 
