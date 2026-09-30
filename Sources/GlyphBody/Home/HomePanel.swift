@@ -49,7 +49,7 @@ struct HomeView: View {
                 .tabItem { Text("Tarefas") }
             FilesTab(title: "Skills", dir: casa.appendingPathComponent("skills"), casa: casa)
                 .tabItem { Text("Skills") }
-            TextTab(title: "Histórico", text: Self.history(casa), file: casa.appendingPathComponent("historico.jsonl"))
+            HistoryTab(rows: Self.historyRows(casa), file: casa.appendingPathComponent("historico.jsonl"))
                 .tabItem { Text("Histórico") }
             TextTab(title: "Cérebro", text: Self.read(casa.appendingPathComponent("config.yaml")),
                     file: casa.appendingPathComponent("config.yaml"))
@@ -82,15 +82,56 @@ struct HomeView: View {
         }.joined(separator: "\n\n")
     }
 
-    static func history(_ casa: URL) -> String {
-        let text = read(casa.appendingPathComponent("historico.jsonl"))
-        let lines = text.split(separator: "\n").suffix(60).compactMap { line -> String? in
-            guard let obj = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any] else { return nil }
+    /// Últimas entradas, da mais nova para a mais velha. Cada uma abre a
+    /// explicação ("por que você fez isso?"), montada do que foi registrado.
+    static func historyRows(_ casa: URL) -> [HistoryRow] {
+        let text = (try? String(contentsOf: casa.appendingPathComponent("historico.jsonl"), encoding: .utf8)) ?? ""
+        let rows = text.split(separator: "\n").suffix(60).enumerated().compactMap { i, line -> HistoryRow? in
+            let data = Data(line.utf8)
+            guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
             let who = (obj["origin"] as? String) == "autonomous" ? "sozinho" : "pedido"
             let ts = (obj["ts"] as? String).map { String($0.prefix(16)).replacingOccurrences(of: "T", with: " ") } ?? ""
-            return "\(ts)  \(who)  \(obj["outcome"] as? String ?? "")  \(obj["summary"] as? String ?? "")"
+            let title = "\(ts)  \(who)  \(obj["outcome"] as? String ?? "")  \(obj["summary"] as? String ?? "")"
+            let why = (try? JSONDecoder().decode(WhyRecord.self, from: data)).map(Explanation.lines) ?? []
+            return HistoryRow(id: "\(i)-\(obj["id"] as? String ?? "")", title: title, why: why)
         }
-        return lines.isEmpty ? "nada ainda" : lines.reversed().joined(separator: "\n")
+        return rows.reversed()
+    }
+}
+
+struct HistoryRow: Identifiable {
+    let id: String
+    let title: String
+    let why: [String]
+}
+
+struct HistoryTab: View {
+    let rows: [HistoryRow]
+    let file: URL
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if rows.isEmpty {
+                Text("nada ainda").foregroundStyle(.secondary)
+                Spacer()
+            } else {
+                List(rows) { row in
+                    DisclosureGroup {
+                        VStack(alignment: .leading, spacing: 2) {
+                            ForEach(Array(row.why.enumerated()), id: \.offset) { _, line in
+                                Text(line).textSelection(.enabled)
+                            }
+                        }
+                    } label: {
+                        Text(row.title).font(.system(.body, design: .monospaced)).lineLimit(1)
+                    }
+                }
+            }
+            HStack {
+                Button("Abrir arquivo") { NSWorkspace.shared.open(file) }
+                Button("Mostrar no Finder") { NSWorkspace.shared.activateFileViewerSelecting([file]) }
+            }
+        }
     }
 }
 

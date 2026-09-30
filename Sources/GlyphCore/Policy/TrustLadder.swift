@@ -222,6 +222,16 @@ public struct Policy: Sendable, Codable, Equatable {
         }
     }
 
+    /// O que sustenta uma decisão que age sem pedir: a regra "sempre" (se há)
+    /// ou o nível da escada. Registrado no histórico na hora da ação.
+    public func authorization(_ key: TrustKey, tool: String? = nil, now: Date = Date()) -> Authorization {
+        if key.actionClass.isReversible != false,
+           let r = rules.first(where: { $0.matches(key, tool: tool, at: now) }) {
+            return Authorization(.rule, actionClass: key.actionClass, scope: r.escopo, until: r.expira)
+        }
+        return Authorization(.ladder, level: ladder.level(key)?.rawValue, actionClass: key.actionClass, scope: key.scope)
+    }
+
     /// Cria a regra de "sempre permitir". Classes irreversíveis não aceitam.
     public mutating func allowAlways(_ key: TrustKey, tool: String?, until: Date) -> Bool {
         guard key.actionClass.isReversible == true else { return false }

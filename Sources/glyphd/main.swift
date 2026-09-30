@@ -23,6 +23,7 @@ uso: glyphd <comando>
   install | uninstall       liga/desliga o glyphd como LaunchAgent (macOS)
   pair <Glyph.app>          confia neste build do app (cdhash) para aprovar ações
   historico [n]             o que ele fez (sozinho ou a pedido)
+  porque [id]               por que ele fez isso (a última ação, sem id)
   desfazer <id>             desfaz uma ação que tem inversa
   confianca                 escada de confiança e regras "sempre"
   objetivos                 valida e lista o casa/goals.yaml
@@ -278,6 +279,19 @@ case "historico":
         done.signal()
     }
     done.wait()
+
+case "porque":
+    let wanted = args.first
+    let lines: [String] = blocking {
+        let h = HistoryStore(url: paths.history)
+        let e: HistoryEntry?
+        if let wanted { e = await h.entry(wanted) } else { e = await h.recent(1).last }
+        guard let e else { return [] }
+        let when = String(ISO8601.format(e.ts).prefix(16)).replacingOccurrences(of: "T", with: " ")
+        return ["\(e.id)  \(when)"] + Explanation.lines(e.why).map { "  " + $0 }
+    }
+    if lines.isEmpty { fail(wanted.map { "não achei \($0)" } ?? "histórico vazio") }
+    lines.forEach { print($0) }
 
 case "desfazer":
     guard let id = args.first else { fail("uso: glyphd desfazer <id>") }

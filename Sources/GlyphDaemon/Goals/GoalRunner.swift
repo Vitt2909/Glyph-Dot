@@ -115,6 +115,9 @@ public actor GoalRunner {
 
     public func setNightShift(_ on: Bool) { nightShift = on }
 
+    /// O que disparou o objetivo em andamento (vai para o histórico).
+    private var currentTrigger: String?
+
     // MARK: - Gatilhos e horários
 
     /// Um evento de sensor pode disparar objetivos (`gatilhos`).
@@ -124,7 +127,7 @@ public actor GoalRunner {
             if let s = g.escopo, let cwd = e.cwd ?? e.repo, !Scope.contains(Scope.normalize(ShellTool.expand(s)), Scope.normalize(cwd)) {
                 continue
             }
-            _ = await run(g)
+            _ = await run(g, trigger: "\(kind) em \(Explanation.shortPath(e.cwd ?? e.repo ?? "?"))")
         }
     }
 
@@ -144,7 +147,8 @@ public actor GoalRunner {
                 await body.cue(.bodyEmote(BodyEmote(clip: "wave", dot: .steady, sticker: "diario")))
                 out[g.id] = .satisfied
             } else {
-                out[g.id] = await run(g, now: now)
+                let why = g.schedule == .night ? "turno noturno" : "horário \(g.horario ?? "")"
+                out[g.id] = await run(g, now: now, trigger: why)
             }
         }
         return out
@@ -152,11 +156,12 @@ public actor GoalRunner {
 
     // MARK: - Um objetivo
 
-    public func run(_ goal: Goal, now: Date = Date()) async -> GoalOutcome {
+    public func run(_ goal: Goal, now: Date = Date(), trigger: String? = nil) async -> GoalOutcome {
         guard !running else { return .skipped("já trabalhando") }
         guard !(await body.isPaused()) else { return .skipped("freio puxado") }
         running = true
-        defer { running = false }
+        currentTrigger = trigger ?? "objetivo \(goal.id)"
+        defer { running = false; currentTrigger = nil }
         guard let success = goal.sucesso, let scope = goal.escopo else { return .skipped("sem sucesso/escopo") }
         let root = GitWatcher.root(of: scope) ?? ShellTool.expand(scope)
 
@@ -201,7 +206,9 @@ public actor GoalRunner {
         task.branch = workspace.branch
         await history.append(HistoryEntry(origin: .autonomous, summary: "objetivo \(goal.id): começou \(task.title)",
                                           actionClass: .localWrite, scope: workspace.path, outcome: .done,
-                                          detail: workspace.branch.map { "ramo \($0)" }))
+                                          detail: workspace.branch.map { "ramo \($0)" },
+                                          trigger: currentTrigger, authorization: goalAuth(goal, workspace),
+                                          evidence: String(check.output.suffix(160))))
 
         // 4. Até 3 abordagens diferentes.
         var lastFailure = check.output
@@ -237,14 +244,18 @@ public actor GoalRunner {
                 if task.attempts.count > 1 { writeLesson(task: task, goal: goal) }
                 await history.append(HistoryEntry(origin: .autonomous, summary: "objetivo \(goal.id): \(task.title)",
                                                   actionClass: .localWrite, scope: workspace.path, outcome: .done,
-                                                  detail: task.note, inverse: inverse(for: workspace)))
+                                                  detail: task.note, inverse: inverse(for: workspace),
+                                                  trigger: currentTrigger, authorization: goalAuth(goal, workspace),
+                                                  cost: cost(ledger), evidence: "`\(success)` passou; hipótese: \(attempt.hypothesis)"))
                 await publishIfApproved(task: task, workspace: workspace)
                 return .fixed(branch: workspace.branch, attempts: task.attempts.count)
             }
             lastFailure = after.output
             await history.append(HistoryEntry(origin: .autonomous, summary: "objetivo \(goal.id): tentativa \(task.attempts.count) falhou",
                                               actionClass: .localWrite, scope: workspace.path, outcome: .failed,
-                                              detail: "hipótese: \(attempt.hypothesis)"))
+                                              detail: "hipótese: \(attempt.hypothesis)",
+                                              trigger: currentTrigger, authorization: goalAuth(goal, workspace),
+                                              cost: cost(ledger), evidence: FailureParser.first(in: after.output)?.short))
             try? await WorkspaceManager.discardChanges(workspace)
             await board.upsert(task)
         }
@@ -255,7 +266,8 @@ public actor GoalRunner {
         task.note = "tentei \(task.attempts.count) abordagens (\(tried)); travei em: \(FailureParser.first(in: lastFailure)?.short ?? "falha sem arquivo")"
         await board.upsert(task)
         await history.append(HistoryEntry(origin: .autonomous, summary: "objetivo \(goal.id): precisa de você",
-                                          outcome: .failed, detail: task.note))
+                                          outcome: .failed, detail: task.note, trigger: currentTrigger,
+                                          authorization: goalAuth(goal, workspace), cost: cost(ledger)))
         if !nightShift {
             await body.cue(.bodyEmote(BodyEmote(clip: "error", dot: .shrink)))
             await body.cue(.bubbleSay(BubbleSay(text: "travei em \(goal.id). me ajuda?", durationSec: 8)))
@@ -363,6 +375,14 @@ public actor GoalRunner {
         }
     }
 
+    nonisolated func goalAuth(_ goal: Goal, _ w: Workspace) -> Authorization {
+        Authorization(.goal, actionClass: .localWrite, scope: w.path, ref: goal.id)
+    }
+
+    nonisolated func cost(_ l: BudgetLedger) -> ActionCost {
+        ActionCost(tokens: l.tokens, usd: l.usd)
+    }
+
     /// Publicar (push/PR) é `external_effect`: sempre pede. De madrugada, sem
     /// resposta, fica para o diário.
     func publishIfApproved(task: BoardTask, workspace: Workspace) async {
@@ -377,7 +397,9 @@ public actor GoalRunner {
         }
         let r = try? await WorkspaceManager.git(["push", "-u", "origin", branch], in: repo, timeout: 120)
         await history.append(HistoryEntry(origin: .autonomous, summary: "publicou \(branch)", actionClass: .externalEffect,
-                                          outcome: r?.status == 0 ? .done : .failed, detail: r.map { String($0.output.suffix(200)) }))
+                                          outcome: r?.status == 0 ? .done : .failed, detail: r.map { String($0.output.suffix(200)) },
+                                          trigger: currentTrigger,
+                                          authorization: Authorization(.card, actionClass: .externalEffect, scope: repo, at: Date())))
     }
 
     /// Deu certo depois de falhar → lição em rascunho. Só vira skill com aprovação.

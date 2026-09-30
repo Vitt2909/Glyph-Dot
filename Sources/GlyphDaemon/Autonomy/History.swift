@@ -31,10 +31,19 @@ public struct HistoryEntry: Sendable, Codable, Equatable, Identifiable {
     public var detail: String?
     public var inverse: Inverse?
     public var score: Double?
+    /// O que disparou (evento, pedido, horário). "Por que você fez isso?"
+    public var trigger: String?
+    /// O que permitiu, registrado na hora.
+    public var authorization: Authorization?
+    public var cost: ActionCost?
+    /// Arquivo:linha, trecho curto, ramo.
+    public var evidence: String?
 
     public init(id: String = String(UUID().uuidString.prefix(8)).lowercased(), ts: Date = Date(), origin: Origin,
                 summary: String, actionClass: ActionClass? = nil, scope: String? = nil, tool: String? = nil,
-                outcome: Outcome, detail: String? = nil, inverse: Inverse? = nil, score: Double? = nil) {
+                outcome: Outcome, detail: String? = nil, inverse: Inverse? = nil, score: Double? = nil,
+                trigger: String? = nil, authorization: Authorization? = nil, cost: ActionCost? = nil,
+                evidence: String? = nil) {
         self.id = id
         self.ts = ts
         self.origin = origin
@@ -46,6 +55,17 @@ public struct HistoryEntry: Sendable, Codable, Equatable, Identifiable {
         self.detail = detail
         self.inverse = inverse
         self.score = score
+        self.trigger = trigger
+        self.authorization = authorization
+        self.cost = cost
+        self.evidence = evidence
+    }
+
+    /// O que a explicação precisa.
+    public var why: WhyRecord {
+        WhyRecord(id: id, origin: origin.rawValue, summary: summary, outcome: outcome.rawValue, detail: detail,
+                  actionClass: actionClass, scope: scope, tool: tool, trigger: trigger, authorization: authorization,
+                  cost: cost, evidence: evidence, undoable: inverse != nil)
     }
 }
 

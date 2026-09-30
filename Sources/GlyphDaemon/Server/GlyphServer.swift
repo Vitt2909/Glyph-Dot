@@ -263,6 +263,9 @@ public actor GlyphServer {
 
     // MARK: - Chamado
 
+    /// Por quanto tempo um clique explica a última ação autônoma.
+    static let explainWindow: TimeInterval = 120
+
     private func summon(_ s: InputSummon, session: Session) async {
         if paused {
             // Chamar é um pedido explícito: solta o freio.
@@ -270,6 +273,12 @@ public actor GlyphServer {
         }
         guard let text = s.text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else {
             send(.bodyEmote(BodyEmote(clip: "wave", dot: .pulse)), to: session)
+            // Clique logo depois de uma ação autônoma: "por que você fez isso?"
+            if !busy, let last = await history.recent(1).last, last.origin == .autonomous,
+               Date().timeIntervalSince(last.ts) < Self.explainWindow, last.outcome != .discarded {
+                send(.bubbleSay(BubbleSay(text: Explanation.short(last.why), durationSec: 8)), to: session)
+                return
+            }
             send(.bubbleSay(BubbleSay(text: busy ? "já tô pensando…" : "oi.")), to: session)
             return
         }
@@ -295,10 +304,21 @@ public actor GlyphServer {
             let result = try await loop.run(text, context: worldContext(session.world), history: chatHistory, cues: cues)
             chatHistory = Array(result.turns.suffix(24))
             trimHistory()
-            for step in result.steps {
+            for (i, step) in result.steps.enumerated() {
+                let auth: Authorization
+                switch step.decision {
+                case .allow, .allowAndAnnounce: auth = Authorization(.request, actionClass: step.actionClass)
+                case .ask, .askTwice:
+                    auth = step.approved ? Authorization(.card, actionClass: step.actionClass, at: Date())
+                                         : Authorization(.refused, actionClass: step.actionClass)
+                case let .deny(why): auth = Authorization(.policy, actionClass: step.actionClass, note: why)
+                }
+                // O custo em tokens é do chamado inteiro: vai na primeira entrada.
+                let cost = i == 0 && result.usage.total > 0 ? ActionCost(tokens: result.usage.total) : nil
                 await history.append(HistoryEntry(origin: .user, summary: text, actionClass: step.actionClass,
                                                   tool: step.tool, outcome: step.approved ? (step.output?.isError == true ? .failed : .done) : .denied,
-                                                  detail: step.output.map { String($0.text.suffix(200)) }))
+                                                  detail: step.output.map { String($0.text.suffix(200)) },
+                                                  authorization: auth, cost: cost))
             }
             log.log("resposta: \(result.answer) (\(result.steps.count) ferramentas, \(result.usage.total) tokens)")
             if let home = session.world?.glyph {
@@ -361,7 +381,8 @@ public actor GlyphServer {
             pendingApprovals.removeAll()
             broadcast(.bodyGoto(BodyGoto(target: .home)))
             broadcast(.bodyEmote(BodyEmote(clip: "idle", dot: .fade)))
-            await history.append(HistoryEntry(origin: .user, summary: "freio puxado", outcome: .done))
+            await history.append(HistoryEntry(origin: .user, summary: "freio puxado", outcome: .done,
+                                              authorization: Authorization(.request)))
         } else {
             log.log("freio solto")
             broadcast(.bubbleSay(BubbleSay(text: "voltei.")))
