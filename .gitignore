@@ -4,3 +4,12 @@ build/
 *.xcodeproj/
 DerivedData/
 .DS_Store
+
+# Local credentials and private runtime data
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
