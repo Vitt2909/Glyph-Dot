@@ -74,6 +74,10 @@ public struct GlyphEngine: Sendable {
     private var approval: (why: String, until: Double)?
     private var budgetDots = 0
     private var pendingDiary: String?
+    /// Tarefas com objeto (ideia 3), pela ordem da última atualização.
+    public private(set) var tasks: [TaskObject] = []
+    /// Oferta em aberto (ideia 1): objeto na mão, ações ao redor.
+    public private(set) var offer: Offer?
     private var fullscreen = false
     private var braked = false
 
@@ -215,14 +219,32 @@ public struct GlyphEngine: Sendable {
             return
         }
         lastClick = time
-        click()
+        click(at: p)
     }
 
-    private mutating func click() {
+    private mutating func click(at p: Vec2) {
+        // Uma ação da oferta, ao redor do objeto.
+        if let o = offer {
+            if let hit = offerProps.first(where: { $0.prop.center.distance(to: p) <= $0.prop.hitRadius }) {
+                offer = nil
+                events.append(.send(.offerChoice(OfferChoice(offerId: o.id, actionId: hit.action.id))))
+                say("\(hit.action.label)…", duration: 3)
+                oneShot = ("work", time)
+                return
+            }
+            say(offerLine, duration: 8)
+            return
+        }
         if let diary = pendingDiary {
             pendingDiary = nil
             held = nil
             events.append(.openFile(diary))
+            return
+        }
+        // O objeto da tarefa: progresso, resultado, pendências.
+        if let t = carriedTask {
+            say(t.line, duration: 8)
+            if t.isFinished { tasks.removeAll { $0.id == t.id } } // viu o resultado: larga
             return
         }
         if funMode.scene != nil {
@@ -300,15 +322,90 @@ public struct GlyphEngine: Sendable {
             say(BubbleSay(text: r.why).displayText, duration: min(r.timeoutSec, 30))
         case let .taskUpdate(t):
             budgetDots = min(t.budgetRemaining ?? 0, 12)
+            updateTask(t)
         case let .diaryReady(d):
             // Volta de manhã segurando o diário; clicar abre.
             pendingDiary = d.path
             if let s = stickers["diario"] { held = (s, time + 12 * 3600) }
             say("diário pronto.", duration: 6)
+        case let .offerActions(o):
+            guard stickers[o.object] != nil, !PackLoader.protectedStickers.contains(o.object) else { break }
+            offer = Offer(id: o.offerId, object: o.object, title: o.title,
+                          actions: Array(o.actions.prefix(OfferActions.maxActions)), until: time + o.timeoutSec)
+            oneShot = ("look", time)
+            say(offerLine, duration: min(o.timeoutSec, 30))
         case .hello,
-             .worldUpdate, .inputSummon, .inputBrake, .approvalResponse:
+             .worldUpdate, .inputSummon, .inputBrake, .approvalResponse, .taskShelf, .inputDrop, .offerChoice:
             break
         }
+    }
+
+    // MARK: - Tarefas e ofertas
+
+    private mutating func updateTask(_ t: TaskUpdate) {
+        guard let object = t.object, stickers[object] != nil, !PackLoader.protectedStickers.contains(object) else {
+            // Sem objeto: só progresso. Atualiza se a tarefa já é conhecida.
+            if let i = tasks.firstIndex(where: { $0.id == t.taskId }) {
+                tasks[i].step = t.step
+                tasks[i].progress = t.progress
+                if let st = t.state { tasks[i].state = st }
+                tasks[i].updated = time
+            }
+            return
+        }
+        let state = t.state ?? .doing
+        tasks.removeAll { $0.id == t.taskId }
+        guard state != .parked else { return } // foi para a prateleira da casa
+        tasks.append(TaskObject(id: t.taskId, object: object, title: t.title ?? "", step: t.step, progress: t.progress,
+                                state: state, pending: t.pending, result: t.result, updated: time))
+        if tasks.count > 8 { tasks.removeFirst(tasks.count - 8) }
+        if state == .needsYou || state == .done {
+            say(tasks.last!.line, duration: 6)
+        }
+    }
+
+    /// A tarefa cujo objeto está na mão: a mais recente.
+    public var carriedTask: TaskObject? { tasks.last { $0.isCarried } }
+
+    private var offerLine: String {
+        guard let o = offer else { return "" }
+        // A bolha tem 40 caracteres: sem espaço, ficam só as ações (na ordem
+        // dos stickers, da esquerda para a direita).
+        let labels = o.actions.map(\.label).joined(separator: " · ")
+        let full = "\(o.title): \(labels)"
+        return full.count <= BubbleSay.maxLength ? full : labels
+    }
+
+    /// Onde fica cada ação da oferta: um arco acima da cabeça, na ordem da bolha.
+    public var offerProps: [(action: OfferAction, prop: Prop)] {
+        guard let o = offer else { return [] }
+        let n = Double(o.actions.count)
+        let top = body.position.y + metrics.height + 20
+        return o.actions.enumerated().compactMap { i, a in
+            guard let s = stickers[a.sticker ?? "folha"] ?? stickers["folha"] else { return nil }
+            let x = body.position.x + (Double(i) - (n - 1) / 2) * 28
+            let arc = 6 * (1 - abs(Double(i) - (n - 1) / 2) / max(n / 2, 1))
+            return (a, Prop(sticker: s, center: Vec2(x, top + arc)))
+        }
+    }
+
+    /// Arquivos arrastados por cima: aceita se o ponto está no Glyph.
+    public func acceptsDrop(at p: Vec2) -> Bool {
+        guard homeState != .inside, let b = lastBounds else { return false }
+        return b.insetBy(dx: -24, dy: -24).contains(p)
+    }
+
+    /// Soltaram arquivos nele: segura e pergunta ao cérebro o que fazer.
+    @discardableResult
+    public mutating func dropped(paths: [String], at p: Vec2) -> Bool {
+        let clean = Array(paths.filter { $0.hasPrefix("/") }.prefix(InputDrop.maxPaths))
+        guard acceptsDrop(at: p), !clean.isEmpty else { return false }
+        if funMode.isOn { stopFun() }
+        oneShot = ("look", time)
+        if let s = stickers["folha"] { held = (s, time + 6) }
+        lookTarget = p
+        events.append(.send(.inputDrop(InputDrop(paths: clean))))
+        return true
     }
 
     /// O usuário respondeu a um pedido (o corpo manda `approval.response`).
@@ -387,7 +484,7 @@ public struct GlyphEngine: Sendable {
     /// pedido de movimento do cérebro, erro ou alerta.
     static func interruptsFun(_ m: Message) -> Bool {
         switch m {
-        case .approvalRequest, .taskUpdate, .bodyGoto:
+        case .approvalRequest, .taskUpdate, .bodyGoto, .offerActions:
             return true
         case let .bodyEmote(e) where e.agentId == nil:
             return PackLoader.protectedClips.contains(e.clip) || e.dot.map { [DotMode.alert, .blink, .shrink].contains($0) } == true
@@ -577,6 +674,11 @@ public struct GlyphEngine: Sendable {
         if let t = brainTarget, time > t.until { brainTarget = nil }
         if let d = brainDot, time > d.until { brainDot = nil }
         if let h = held, time > h.until { held = nil }
+        if let o = offer, time > o.until {
+            // Sem escolha: dispensou.
+            offer = nil
+            events.append(.send(.offerChoice(OfferChoice(offerId: o.id, actionId: nil))))
+        }
 
         let moving = abs(body.velocity.x) > 5 || !body.support.isGrounded
         let near = cursor.position.map { $0.distance(to: body.position) < 200 } ?? false
@@ -1017,11 +1119,14 @@ public struct GlyphEngine: Sendable {
         }
         if sleepStart != nil { opacity = 0.85 }
 
-        var holding = held?.sticker
+        // Na mão: cartão de aprovação > objeto oferecido > sticker do momento
+        // (diário, gesto) > objeto da tarefa.
+        var holding = held?.sticker ?? carriedTask.flatMap { stickers[$0.object] }
+        if let o = offer { holding = stickers[o.object] ?? holding }
         if approval != nil, locomotion == .stand { holding = stickers["cartao"] ?? holding }
         let d = GlyphDrawing(position: body.position, skeleton: sk, dot: dot, eyes: eyes,
                              boilFrame: Int(time * 24), bubble: bubble?.text, budgetDots: budgetDots,
-                             opacity: opacity, held: holding)
+                             opacity: opacity, held: holding, props: offerProps.map(\.prop))
         lastBounds = d.bounds
         return d
     }

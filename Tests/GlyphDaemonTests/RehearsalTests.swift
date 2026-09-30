@@ -167,6 +167,10 @@ final class RehearsalTests: XCTestCase {
         XCTAssertEqual(card?.target, "organizar Downloads: 1 arquivo seria movido.")
         XCTAssertEqual(card?.actionClass, .localWrite)
         XCTAssertTrue(fm.fileExists(atPath: downloads.appendingPathComponent("PDFs/contrato.pdf").path))
+        // O plano vira uma pasta na mão do Glyph: primeiro esperando você, depois pronta.
+        XCTAssertTrue(body.waitFor { $0.contains { if case let .taskUpdate(u) = $0 { return u.object == "pasta" && u.state == .done }; return false } })
+        let objects = body.messages.compactMap { m -> TaskUpdate? in if case let .taskUpdate(u) = m { return u }; return nil }
+        XCTAssertEqual(objects.map(\.state), [.needsYou, .done])
 
         let applied = await history.entries.first { $0.tool == "aplicar_plano" }
         XCTAssertEqual(applied?.authorization?.kind, .card)

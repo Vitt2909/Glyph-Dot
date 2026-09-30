@@ -23,7 +23,7 @@ O Dot muda de **comportamento**, não de cor.
 
 Ícones internos também são adesivos desenhados, nunca emoji:
 
-<p align="center"><img src="docs/art/stickers.svg" alt="Stickers: alfinete, cartão, casa, chave, diário, escudo, folha, lâmpada, lupa, mochila, pausa, pincel, relógio" width="448"></p>
+<p align="center"><img src="docs/art/stickers.svg" alt="Stickers: alfinete, cartão, casa, chave, diário, envelope, escudo, folha, lâmpada, livro, lupa, mochila, pasta, pausa, pincel, relógio" width="448"></p>
 
 ## Princípios
 

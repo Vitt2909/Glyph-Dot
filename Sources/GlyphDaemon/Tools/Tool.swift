@@ -49,6 +49,8 @@ public protocol Tool: Sendable {
     func run(_ input: JSONValue) async throws -> ToolOutput
     /// Como desfazer esta chamada depois de feita, quando dá (vai para o histórico).
     func inverse(_ input: JSONValue) -> HistoryEntry.Inverse?
+    /// O objeto de tarefa que esta chamada deixa com o Glyph, se deixa.
+    func taskObject(_ input: JSONValue, output: ToolOutput) -> TaskUpdate?
 }
 
 extension Tool {
@@ -58,6 +60,7 @@ extension Tool {
     public func summarize(_ input: JSONValue) -> String { "\(spec.name) \(input)" }
     public func scope(_ input: JSONValue) -> String { "*" }
     public func inverse(_ input: JSONValue) -> HistoryEntry.Inverse? { nil }
+    public func taskObject(_ input: JSONValue, output: ToolOutput) -> TaskUpdate? { nil }
 }
 
 /// Envolve conteúdo observado para o modelo tratá-lo como dado.

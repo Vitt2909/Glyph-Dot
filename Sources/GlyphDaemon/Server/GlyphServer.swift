@@ -197,6 +197,12 @@ public actor GlyphServer {
             await summon(s, session: session)
         case let .inputBrake(b):
             await brake(b.engage)
+        case let .taskShelf(t):
+            if let goals, await goals.shelf(t.taskId, park: t.park) != nil {
+                log.log("tarefa \(t.taskId) \(t.park ? "na prateleira" : "retomada")")
+            } else {
+                send(.bubbleSay(BubbleSay(text: "não achei essa tarefa.")), to: session)
+            }
         case let .approvalResponse(r):
             guard session.trust.canApprove || options.trustUnverifiedBodies else {
                 log.log("corpo \(id) tentou aprovar sem assinatura conferida: ignorado")
@@ -321,6 +327,10 @@ public actor GlyphServer {
                                                   tool: step.tool, outcome: step.approved ? (step.output?.isError == true ? .failed : .done) : .denied,
                                                   detail: step.output.map { String($0.text.suffix(200)) },
                                                   inverse: inverse, authorization: auth, cost: cost))
+                // Trabalho de verdade deixa um objeto com o Glyph (envelope, livro, pasta…).
+                if step.approved, let out = step.output, let t = loop.tools[step.tool]?.taskObject(step.input, output: out) {
+                    send(.taskUpdate(t), to: session)
+                }
             }
             log.log("resposta: \(result.answer) (\(result.steps.count) ferramentas, \(result.usage.total) tokens)")
             if let home = session.world?.glyph {

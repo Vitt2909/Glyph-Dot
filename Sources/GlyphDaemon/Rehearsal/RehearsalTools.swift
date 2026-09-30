@@ -47,6 +47,15 @@ public struct RehearseTool: Tool {
     }
 }
 
+extension RehearseTool {
+    public func taskObject(_ input: JSONValue, output: ToolOutput) -> TaskUpdate? {
+        guard !output.isError, let first = output.text.split(separator: "\n").first, first.hasPrefix("plano "),
+              let plan = try? store.load(String(first.dropFirst(6))) else { return nil }
+        return TaskUpdate(taskId: plan.id, step: "ensaio pronto", progress: 0.5, object: "pasta", title: plan.title,
+                          state: .needsYou, pending: plan.summary)
+    }
+}
+
 /// Aplica um plano de ensaio aprovado. Reversível: o histórico guarda como
 /// desfazer o plano inteiro.
 public struct ApplyPlanTool: Tool {
@@ -77,6 +86,12 @@ public struct ApplyPlanTool: Tool {
     public func inverse(_ input: JSONValue) -> HistoryEntry.Inverse? {
         guard let id = input["plano"]?.stringValue else { return nil }
         return HistoryEntry.Inverse(tool: "desfazer_plano", input: .object(["plano": .string(id)]), summary: "desfazer o plano \(id)")
+    }
+
+    public func taskObject(_ input: JSONValue, output: ToolOutput) -> TaskUpdate? {
+        guard let id = input["plano"]?.stringValue, let plan = try? store.load(id) else { return nil }
+        return TaskUpdate(taskId: id, step: "aplicado", progress: 1, object: "pasta", title: plan.title,
+                          state: output.isError ? .failed : .done, result: output.text.split(separator: "\n").first.map(String.init))
     }
 
     public func run(_ input: JSONValue) async throws -> ToolOutput {

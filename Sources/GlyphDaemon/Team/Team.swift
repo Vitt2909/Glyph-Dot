@@ -323,6 +323,15 @@ public struct DelegateTool: Tool {
         "chamar \(input["role"]?.stringValue ?? "?"): \(input["task"]?.stringValue ?? "")"
     }
 
+    /// Pesquisa vira um livro na mão; proposta de design, uma folha.
+    public func taskObject(_ input: JSONValue, output: ToolOutput) -> TaskUpdate? {
+        guard let role = input["role"]?.stringValue.flatMap(SpecialistRole.init(rawValue:)) else { return nil }
+        let task = input["task"]?.stringValue ?? ""
+        return TaskUpdate(taskId: "delegar-" + String(UUID().uuidString.prefix(6)).lowercased(), step: "concluído", progress: 1,
+                          object: role == .researcher ? "livro" : "folha", title: String(task.prefix(60)),
+                          state: output.isError ? .failed : .done)
+    }
+
     public func run(_ input: JSONValue) async throws -> ToolOutput {
         guard let raw = input["role"]?.stringValue, let role = SpecialistRole(rawValue: raw),
               role == .researcher || role == .designer else {

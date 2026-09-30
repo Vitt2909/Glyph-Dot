@@ -35,6 +35,8 @@ uso: glyphd <comando>
   ensaios                   lista os planos
   objetivos                 valida e lista o casa/goals.yaml
   quadro                    tarefas dos objetivos e tentativas
+  quadro estacionar <id>    guarda a tarefa na prateleira (ninguém mexe nela)
+  quadro retomar <id>       tira da prateleira
   diario                    escreve o diário das últimas 24 h agora
   mcp                       conecta nos servidores MCP do config e lista as ferramentas
   packs [validar <pasta>]   lista os packs da comunidade (ou valida um pack)
@@ -416,13 +418,25 @@ case "objetivos":
     for e in errors { print("ERRO: \(e)") }
     exit(errors.isEmpty ? 0 : 1)
 
+case "quadro" where ["estacionar", "retomar"].contains(args.first ?? ""):
+    guard args.count >= 2 else { fail("uso: glyphd quadro \(args[0]) <id>") }
+    let park = args[0] == "estacionar", id = args[1]
+    let t: BoardTask? = blocking {
+        guard let t = await BoardStore(url: paths.board).shelf(id, park: park) else { return nil }
+        await HistoryStore(url: paths.history).append(HistoryEntry(origin: .user, summary: "\(park ? "estacionou" : "retomou") \(t.title)",
+                                                                   outcome: .done, authorization: Authorization(.request)))
+        return t
+    }
+    guard let t else { fail("não dá: \(id) não existe ou já está \(park ? "fechada ou na prateleira" : "fora da prateleira")") }
+    print("[\(t.status.rawValue)] \(t.title)")
+
 case "quadro":
     let done = DispatchSemaphore(value: 0)
     Task.detached {
         let tasks = await BoardStore(url: paths.board).tasks
         if tasks.isEmpty { print("quadro vazio") }
         for t in tasks.suffix(30) {
-            print("[\(t.status.rawValue)] \(t.title)\(t.branch.map { " (\($0))" } ?? "")")
+            print("\(t.id)  [\(t.status.rawValue)] \(t.title)\(t.branch.map { " (\($0))" } ?? "")")
             for (i, a) in t.attempts.enumerated() { print("    \(i + 1). \(a.success ? "✓" : "✗") \(a.hypothesis)") }
             if let n = t.note { print("    \(n)") }
         }

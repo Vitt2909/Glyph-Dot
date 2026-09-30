@@ -39,6 +39,14 @@ final class ProtocolTests: XCTestCase {
             .agentSpawn(AgentSpawn(agentId: "b1", role: .builder)),
             .agentDespawn(AgentDespawn(agentId: "b1")),
             .diaryReady(DiaryReady(path: "/tmp/diario/2026-09-29.md")),
+            .taskUpdate(TaskUpdate(taskId: "p", step: "ensaio", progress: 0.5, object: "pasta", title: "organizar",
+                                   state: .needsYou, pending: "2 casos", result: nil)),
+            .taskShelf(TaskShelf(taskId: "t", park: true)),
+            .inputDrop(InputDrop(paths: ["/Users/a/contrato.pdf"])),
+            .offerActions(OfferActions(offerId: "o1", object: "folha", title: "contrato.pdf",
+                                       actions: [OfferAction(id: "resumir", label: "resumir", sticker: "folha")])),
+            .offerChoice(OfferChoice(offerId: "o1", actionId: "resumir")),
+            .offerChoice(OfferChoice(offerId: "o1", actionId: nil)),
         ]
         XCTAssertEqual(Set(messages.map(\.kind)), Set(Message.Kind.allCases), "todo tipo precisa de teste")
         for (i, m) in messages.enumerated() {

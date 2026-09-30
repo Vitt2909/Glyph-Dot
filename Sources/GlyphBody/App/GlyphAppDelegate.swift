@@ -45,6 +45,8 @@ public final class GlyphAppDelegate: NSObject, NSApplicationDelegate {
         }
 
         body.onOpenHome = { [weak self] in self?.homePanel.show() }
+        // A prateleira da casa é um pedido ao glyphd (o painel não escreve na casa).
+        homePanel.onShelf = { [weak self] id, park in self?.link?.send(.taskShelf(TaskShelf(taskId: id, park: park))) }
         summonPanel.onSubmit = { [weak self] text in self?.summon(text) }
         approvalCard.onAnswer = { [weak self] id, decision in
             self?.link?.send(.approvalResponse(ApprovalResponse(requestId: id, decision: decision)))
