@@ -1,0 +1,11 @@
+{
+  "id": "parade",
+  "fps": 12,
+  "loop": true,
+  "keys": [
+    {"t": 0, "pose": {"torso": 4, "head": 4, "legL.upper": 40, "legL.lower": -40, "legR.upper": -20, "legR.lower": -10, "armL.upper": -45, "armR.upper": 45}},
+    {"t": 0.125, "pose": {"torso": 4, "head": 4, "root.dy": 1.5, "legL.upper": 10, "legL.lower": -10, "legR.upper": 10, "legR.lower": -45, "armL.upper": 0, "armR.upper": 0}},
+    {"t": 0.25, "pose": {"torso": 4, "head": 4, "legL.upper": -20, "legL.lower": -10, "legR.upper": 40, "legR.lower": -40, "armL.upper": 45, "armR.upper": -45}},
+    {"t": 0.375, "pose": {"torso": 4, "head": 4, "root.dy": 1.5, "legL.upper": 10, "legL.lower": -45, "legR.upper": 10, "legR.lower": -10, "armL.upper": 0, "armR.upper": 0}}
+  ]
+}

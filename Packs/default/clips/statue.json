@@ -1,0 +1,11 @@
+{
+  "id": "statue",
+  "fps": 12,
+  "loop": false,
+  "keys": [
+    {"t": 0, "ease": "out", "pose": {}},
+    {"t": 0.25, "ease": "out", "pose": {"armL.upper": 155, "armL.lower": 30, "armR.upper": -80, "armR.lower": 70, "head": 12, "torso": 8, "legL.upper": 32, "legL.lower": -34, "legR.upper": -10, "stretch": 1.04}},
+    {"t": 0.4, "pose": {"armL.upper": 150, "armL.lower": 28, "armR.upper": -80, "armR.lower": 70, "head": 10, "torso": 6, "legL.upper": 30, "legL.lower": -32, "legR.upper": -10}}
+  ],
+  "dot": {"mode": "steady"}
+}

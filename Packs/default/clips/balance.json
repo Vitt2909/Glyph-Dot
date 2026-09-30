@@ -1,0 +1,10 @@
+{
+  "id": "balance",
+  "fps": 12,
+  "loop": true,
+  "keys": [
+    {"t": 0, "ease": "inOut", "pose": {"armL.upper": 95, "armL.lower": 0, "armR.upper": -85, "armR.lower": 5, "torso": 4, "head": -3, "legL.upper": 5, "legR.upper": -5}},
+    {"t": 0.6, "ease": "inOut", "pose": {"armL.upper": 85, "armL.lower": -5, "armR.upper": -95, "armR.lower": 0, "torso": -4, "head": 3, "legL.upper": 5, "legR.upper": -5}}
+  ],
+  "dot": {"mode": "steady"}
+}

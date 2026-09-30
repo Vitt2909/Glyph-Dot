@@ -151,6 +151,14 @@ escala para você. Nos chamados, ele pode chamar o **Pesquisador** ou o
 **Designer**. No máximo 3 ao mesmo tempo, cada um com prompt, ferramentas e
 orçamento próprios (`equipe` no `config.yaml`, com cérebro por papel).
 
+### Modo Diversão
+
+No campo de chamada, `/diversao iniciar`, `/danca`, `/robo`, `/truque`,
+`/estatua`, `/janela-palco` ou `/surpresa` (ou "dança pra mim", "me
+surpreenda"…). O corpo encena sozinho: nada vai ao cérebro, nada é executado,
+e o freio, uma aprovação ou uma tarefa encerram a brincadeira na hora. Veja
+[`docs/DIVERSAO.md`](docs/DIVERSAO.md).
+
 ### Ecossistema
 
 - **Seu agente como cérebro.** Qualquer programa que fale o `glyph-brain/1`
