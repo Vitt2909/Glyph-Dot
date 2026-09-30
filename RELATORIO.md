@@ -56,6 +56,8 @@ swift build -c release
 - Ativar o *private vulnerability reporting* do GitHub.
 - Conta Apple Developer (Developer ID + notarização).
 - ADR 0003 (app sem App Sandbox) continua **proposta**.
+- Proposta 0002 (próximas ideias, pós-M6) aguarda revisão: seis decisões
+  no fim do documento.
 - Proposta 0001 (runner remoto) aguarda revisão: mexe na fronteira de
   confiança.
 - Validar o M1 num Mac: rodar, medir CPU em repouso, gravar o GIF.
