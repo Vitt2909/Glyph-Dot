@@ -14,6 +14,9 @@ public enum Move: Sendable, Equatable {
     case grabCeiling(vy: Double)
     /// Soltar do teto.
     case release
+    /// Atravessar para outra tela: pela emenda (lado a lado) ou pelo vão
+    /// entre o teto de uma e o chão da de cima (empilhadas).
+    case pass(Passage.Direction)
 }
 
 /// Um passo do caminho. `surface` é onde o corpo deve estar ao terminar.
@@ -90,7 +93,10 @@ public struct NavGraph: Sendable {
             for dir in [-1.0, 1.0] {
                 let edge = dir < 0 ? a.x0 : a.x1
                 let landX = edge + dir * 4
-                if let j = highestBelow(x: landX, y: a.y) {
+                // Borda de tela sólida nesta altura: não dá para sair andando.
+                let blocked = w.walls.contains { $0.solid && abs($0.x - edge) < 1 && Double($0.side) == dir
+                    && a.y >= $0.y0 - 1 && a.y < $0.y1 - 0.5 }
+                if !blocked, let j = highestBelow(x: landX, y: a.y) {
                     let t = JumpSolver.fallTime(height: a.y - segs[j].y, gravity: c.gravity)
                     out.append(Edge(from: node(i, edge), to: node(j, landX), move: .drop(dir: dir), cost: t + 0.2))
                 }
@@ -113,6 +119,9 @@ public struct NavGraph: Sendable {
                 // A cabeça não pode passar do teto no ponto mais alto do arco.
                 let ceilingY = w.screen(containing: from).map(\.ceilingY) ?? .infinity
                 let maxApex = ceilingY - w.metrics.height - 1
+                let lowY = min(from.y, to.y) + 1
+                if w.walls.contains(where: { $0.ledge != nil && $0.y0 <= lowY && $0.y1 > lowY
+                    && min(from.x, to.x) <= $0.x && max(from.x, to.x) >= $0.x }) { continue }
                 guard abs(to.x - from.x) <= 420,
                       let sol = JumpSolver.solve(from: from, to: to, config: c, maxApex: maxApex) else { continue }
                 out.append(Edge(from: node(i, from.x), to: node(j, to.x), move: .jump(sol.velocity), cost: sol.flightTime + 0.3))
@@ -137,10 +146,16 @@ public struct NavGraph: Sendable {
                 let inner = wall.x - Double(wall.side) * half
                 target = segs.firstIndex { $0.kind == .window(id) && $0.contains(x: inner) && abs($0.y - wall.y1) < 1 }
             case let .screen(id):
-                target = segs.firstIndex { $0.kind == .ceiling(screen: id) }
+                if let ledge = wall.ledge {
+                    let outer = wall.x + Double(wall.side) * half
+                    target = segs.firstIndex { $0.kind == ledge && $0.contains(x: outer) }
+                } else {
+                    target = segs.firstIndex { $0.kind == .ceiling(screen: id) }
+                }
             }
             guard let t = target else { continue }
-            let tx: Double = wall.key.owner.isScreen ? cx : wall.x - Double(wall.side) * half
+            let tx: Double = wall.ledge != nil ? wall.x + Double(wall.side) * half
+                : (wall.key.owner.isScreen ? cx : wall.x - Double(wall.side) * half)
             for (i, a) in segs.enumerated() where i != t && !a.kind.isCeiling && a.contains(x: cx)
                 && a.y >= wall.y0 - reach && a.y < wall.y1 - 1 {
                 let climb = (wall.y1 - max(a.y, wall.y0)) / c.climbSpeed
@@ -156,6 +171,15 @@ public struct NavGraph: Sendable {
                     let t = JumpSolver.fallTime(height: ceil.y - w.metrics.height - a.y, gravity: c.gravity)
                     out.append(Edge(from: node(ci, x), to: node(i, x), move: .release, cost: t + 0.2))
                 }
+            }
+        }
+        // Atravessar para outras telas.
+        for p in w.passages {
+            guard let i = segs.firstIndex(where: { $0.kind == p.from }), let j = segs.firstIndex(where: { $0.kind == p.to }) else { continue }
+            if p.isSide {
+                out.append(Edge(from: Node(seg: i, x: q(p.x)), to: Node(seg: j, x: q(p.x)), move: .pass(p.direction), cost: 0.1))
+            } else {
+                out.append(Edge(from: node(i, p.x), to: node(j, p.x), move: .pass(p.direction), cost: 0.6))
             }
         }
         return out

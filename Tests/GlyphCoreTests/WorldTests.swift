@@ -69,7 +69,13 @@ final class WorldTests: XCTestCase {
         let right = ScreenInfo(id: 2, frame: Rect(x: 1440, y: 0, width: 1920, height: 1080),
                                visibleFrame: Rect(x: 1440, y: 0, width: 1920, height: 1055), menuBarHeight: 25)
         let w = TestWorlds.world([], screens: [TestWorlds.screen, right])
-        XCTAssertEqual(w.walls.filter(\.solid).map(\.x).sorted(), [0, 3360])
+        // A emenda só é parede onde a vizinha não continua: o degrau do Dock
+        // (a tela 1 tem chão em 80, a 2 em 0) e acima do teto da tela 1.
+        XCTAssertEqual(w.walls.filter(\.solid).map(\.x).sorted(), [0, 1440, 1440, 3360])
+        let seam = w.walls.filter { $0.x == 1440 }.sorted { $0.y0 < $1.y0 }
+        XCTAssertEqual(seam.map { Span($0.y0, $0.y1) }, [Span(0, 80), Span(876, 1055)])
+        XCTAssertEqual(seam[0].ledge, .floor(screen: 1), "o degrau leva ao chão da tela 1")
+        XCTAssertNil(seam[1].ledge)
     }
 
     func testSegmentBelow() {
