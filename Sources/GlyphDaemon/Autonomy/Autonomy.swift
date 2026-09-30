@@ -228,6 +228,7 @@ public actor AutonomyEngine {
                 if announce { await body.cue(.bubbleSay(BubbleSay(text: "ainda falha. veja o terminal."))) }
             } else {
                 e.detail = "passou ao rodar de novo"
+                await body.cue(.sceneCue(SceneCue(event: .testsPassed)))
                 await body.cue(.bodyEmote(BodyEmote(clip: "idle", dot: .steady)))
                 if announce { await body.cue(.bubbleSay(BubbleSay(text: "passou agora. instável?"))) }
             }

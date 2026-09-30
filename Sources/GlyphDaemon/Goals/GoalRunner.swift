@@ -275,6 +275,7 @@ public actor GoalRunner {
                 task.note = workspace.branch.map { "correção proposta no ramo \($0) (a main está intocada)" } ?? "corrigido (checkpoint em journal/)"
                 await board.upsert(task)
                 await body.cue(.taskUpdate(task.update))
+                await body.cue(.sceneCue(SceneCue(event: .testsPassed)))
                 if task.attempts.count > 1 { writeLesson(task: task, goal: goal) }
                 await history.append(HistoryEntry(origin: .autonomous, summary: "objetivo \(goal.id): \(task.title)",
                                                   actionClass: .localWrite, scope: workspace.path, outcome: .done,

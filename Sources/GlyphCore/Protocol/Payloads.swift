@@ -336,6 +336,13 @@ public struct PresenceHint: Sendable, Equatable, Codable {
     }
 }
 
+/// Cérebro → corpo: aconteceu um evento real que um pack pode encenar.
+public struct SceneCue: Sendable, Equatable, Codable {
+    public var event: SceneEvent
+
+    public init(event: SceneEvent) { self.event = event }
+}
+
 /// Corpo → cérebro: guardar uma tarefa na prateleira da casa, ou retomá-la.
 public struct TaskShelf: Sendable, Equatable, Codable {
     public var taskId: String

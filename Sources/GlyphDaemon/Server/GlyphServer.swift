@@ -284,6 +284,7 @@ public actor GlyphServer {
                 send(.taskUpdate(TaskUpdate(taskId: "ensino-\(r.name)", step: "aprovada", progress: 1, object: "diario",
                                             title: r.name, state: .done, result: "rotina ativa.")), to: session)
                 say("\(r.name): rotina ativa.")
+                send(.sceneCue(SceneCue(event: .routineApproved)), to: session)
             case "/rotina":
                 guard words.count >= 2 else { say("/rotina <nome> param=valor"); return true }
                 await runRoutine(words[1], values: RoutineStore.parseValues(Array(words.dropFirst(2))), routines: routines, session: session)
@@ -415,6 +416,7 @@ public actor GlyphServer {
                                           outcome: r.failed ? .failed : .done, detail: r.line, authorization: auth,
                                           cost: ActionCost(seconds: Date().timeIntervalSince(started)), evidence: r.reportPath))
         send(.bodyEmote(BodyEmote(clip: r.failed ? "error" : "idle", dot: r.failed ? .shrink : .steady)), to: session)
+        if !r.failed { send(.sceneCue(SceneCue(event: .deliveryDone)), to: session) }
         if let plan = r.planID {
             send(.taskUpdate(TaskUpdate(taskId: plan, step: "ensaio pronto", progress: 0.5, object: "pasta", title: "organizar \(title)",
                                         state: .needsYou, pending: r.line)), to: session)

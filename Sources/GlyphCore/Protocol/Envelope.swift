@@ -27,6 +27,7 @@ public enum Message: Sendable, Equatable {
     case offerActions(OfferActions)
     case offerChoice(OfferChoice)
     case presenceHint(PresenceHint)
+    case sceneCue(SceneCue)
 
     public enum Kind: String, Sendable, CaseIterable {
         case hello
@@ -47,6 +48,7 @@ public enum Message: Sendable, Equatable {
         case offerActions = "offer.actions"
         case offerChoice = "offer.choice"
         case presenceHint = "presence.hint"
+        case sceneCue = "scene.cue"
 
         /// Quem pode enviar este tipo. `approval.request` só vem do cérebro;
         /// `approval.response` só vem do corpo (app assinado).
@@ -56,7 +58,7 @@ public enum Message: Sendable, Equatable {
             case .worldUpdate, .inputSummon, .inputBrake, .approvalResponse,
                  .taskShelf, .inputDrop, .offerChoice: return [.body]
             case .bodyGoto, .bodyEmote, .bubbleSay, .approvalRequest,
-                 .taskUpdate, .agentSpawn, .agentDespawn, .diaryReady, .offerActions, .presenceHint: return [.brain]
+                 .taskUpdate, .agentSpawn, .agentDespawn, .diaryReady, .offerActions, .presenceHint, .sceneCue: return [.brain]
             }
         }
     }
@@ -81,6 +83,7 @@ public enum Message: Sendable, Equatable {
         case .offerActions: return .offerActions
         case .offerChoice: return .offerChoice
         case .presenceHint: return .presenceHint
+        case .sceneCue: return .sceneCue
         }
     }
 
@@ -104,6 +107,7 @@ public enum Message: Sendable, Equatable {
         case let .offerActions(p): return p
         case let .offerChoice(p): return p
         case let .presenceHint(p): return p
+        case let .sceneCue(p): return p
         }
     }
 }
@@ -173,6 +177,7 @@ extension Envelope: Codable {
         case .offerActions: message = .offerActions(try OfferActions(from: decoder))
         case .offerChoice: message = .offerChoice(try OfferChoice(from: decoder))
         case .presenceHint: message = .presenceHint(try PresenceHint(from: decoder))
+        case .sceneCue: message = .sceneCue(try SceneCue(from: decoder))
         }
     }
 

@@ -1,0 +1,9 @@
+{
+  "id": "veto-conversa",
+  "event": "auditor.veto",
+  "beats": [
+    {"actor": "auditor", "at": 0, "clip": "point", "bubble": "olha isso."},
+    {"actor": "builder", "at": 0.8, "clip": "look", "bubble": "hm."},
+    {"actor": "builder", "at": 1.6, "clip": "work", "bubble": "refaço."}
+  ]
+}

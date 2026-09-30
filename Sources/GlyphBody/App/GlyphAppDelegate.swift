@@ -30,6 +30,7 @@ public final class GlyphAppDelegate: NSObject, NSApplicationDelegate {
         let body = BodyController(clips: clips, stickers: stickers,
                                   coexistenceFile: casa.appendingPathComponent("convivencia.json"))
         self.body = body
+        body.setScenes(PackLoader.scenes(default: pack, community: PackLoader.communityPacks(in: PackLocator.communityDir)))
 
         if ProcessInfo.processInfo.environment["GLYPH_MOCK"] == "1" {
             mock = MockBrain()

@@ -43,6 +43,11 @@ public final class BodyController: NSObject {
         super.init()
     }
 
+    /// Cenas dos packs, por evento real.
+    public func setScenes(_ scenes: [SceneEvent: Scene]) {
+        engine.scenes = scenes
+    }
+
     private func saveCoexistence() {
         guard let url = coexistenceFile else { return }
         let enc = JSONEncoder()

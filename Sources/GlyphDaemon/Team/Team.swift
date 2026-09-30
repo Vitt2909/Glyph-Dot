@@ -217,12 +217,14 @@ public actor Team {
             switch verdict {
             case .approved:
                 await say("aprovado.", as: "auditor")
+                await body.cue(.sceneCue(SceneCue(event: .auditorApproved)))
                 await history.append(HistoryEntry(origin: .autonomous, summary: "\(label): Auditor aprovou",
                                                   outcome: .done, detail: hypothesis))
                 return BuildOutcome(approved: true, hypothesis: hypothesis, vetoes: vetoes, usage: usage, steps: steps)
             case let .veto(reason):
                 vetoes.append(reason)
                 await say("não.", as: "auditor")
+                await body.cue(.sceneCue(SceneCue(event: .auditorVeto)))
                 await history.append(HistoryEntry(origin: .autonomous, summary: "\(label): veto do Auditor (rodada \(round))",
                                                   outcome: .failed, detail: reason))
                 log.log("veto do Auditor: \(reason)")

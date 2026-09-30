@@ -649,7 +649,11 @@ case "packs":
             problems.append("sticker \(id) é sinal de segurança: será ignorado")
         }
         if let m = p.manifest {
-            print("\(m.nome) \(m.versao) por \(m.autor) (\(m.licenca)): \(p.clips.clips.count) clipes, \(p.stickers.count) stickers")
+            print("\(m.nome) \(m.versao) por \(m.autor) (\(m.licenca)): \(p.clips.clips.count) clipes, \(p.stickers.count) stickers, \(p.scenes.count) cenas")
+        }
+        for s in p.scenes {
+            let missing = Set(s.beats.map(\.clip)).subtracting(p.clips.clips.keys).sorted()
+            print("  cena \(s.id) em \(s.event.rawValue)" + (missing.isEmpty ? "" : " (usa do pack padrão: \(missing.joined(separator: ", ")))"))
         }
         for e in problems { print("· \(e)") }
         exit(problems.isEmpty && p.manifest != nil ? 0 : 1)

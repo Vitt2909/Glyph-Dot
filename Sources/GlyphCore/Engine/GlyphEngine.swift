@@ -88,6 +88,10 @@ public struct GlyphEngine: Sendable {
     /// Preferência de movimento reduzido do sistema: cenas mais curtas.
     public var reducedMotion = false
 
+    // Cenas de packs (ideia 7), por evento real.
+    public var scenes: [SceneEvent: Scene] = [:]
+    private var sceneBeats: [(at: Double, beat: SceneBeat)] = []
+
     // Convivência (ideia 6): só encenação.
     public var coexistence = Coexistence()
     /// Relógio de parede, para a hora do dia. Sem ele, nada espontâneo.
@@ -369,6 +373,8 @@ public struct GlyphEngine: Sendable {
             pendingDiary = d.path
             if let s = stickers["diario"] { held = (s, time + 12 * 3600) }
             say("diário pronto.", duration: 6)
+        case let .sceneCue(c):
+            playScene(c.event)
         case let .presenceHint(h):
             buildingUntil = h.state == .build ? time + h.untilSec : -1
         case let .offerActions(o):
@@ -380,6 +386,40 @@ public struct GlyphEngine: Sendable {
         case .hello,
              .worldUpdate, .inputSummon, .inputBrake, .approvalResponse, .taskShelf, .inputDrop, .offerChoice:
             break
+        }
+    }
+
+    // MARK: - Cenas
+
+    /// Um evento real aconteceu: toca a cena do pack, se houver. Nunca por
+    /// cima de um pedido de aprovação.
+    private mutating func playScene(_ event: SceneEvent) {
+        guard let s = scenes[event], approval == nil, homeState == .outside else { return }
+        sceneBeats = s.beats.sorted { $0.at < $1.at }.map { (time + $0.at, $0) }
+    }
+
+    private mutating func stepScene() {
+        guard !sceneBeats.isEmpty else { return }
+        if approval != nil { sceneBeats.removeAll(); return }
+        while let first = sceneBeats.first, first.at <= time {
+            sceneBeats.removeFirst()
+            let b = first.beat
+            if b.actor == "glyph" {
+                if clips[b.clip] != nil { oneShot = (b.clip, time) }
+                if let t = b.bubble { say(t, duration: 3) }
+                if let id = b.sticker, let s = stickers[id] { held = (s, time + 3) }
+            } else if let role = SpecialistRole(rawValue: b.actor),
+                      let i = companions.firstIndex(where: { $0.role == role && $0.leavingSince == nil }) {
+                // Só quem está em cena de verdade (especialista chamado) atua.
+                if clips[b.clip] != nil {
+                    companions[i].clip = b.clip
+                    companions[i].clipStart = time
+                }
+                if let t = b.bubble {
+                    companions[i].bubble = BubbleSay(text: t).displayText
+                    companions[i].bubbleUntil = time + 3
+                }
+            }
         }
     }
 
@@ -734,6 +774,7 @@ public struct GlyphEngine: Sendable {
         if let t = brainTarget, time > t.until { brainTarget = nil }
         if let d = brainDot, time > d.until { brainDot = nil }
         if let h = held, time > h.until { held = nil }
+        stepScene()
         if let o = offer, time > o.until {
             // Sem escolha: dispensou.
             offer = nil
