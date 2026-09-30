@@ -169,7 +169,8 @@ final class ConfigAndSecretsTests: XCTestCase {
         XCTAssertEqual(try Runtime.brain(nil, environment: ["ANTHROPIC_API_KEY": "sk-ant-x"]).id, "anthropic:claude-opus-5-5")
         XCTAssertThrowsError(try Runtime.brain(.init(provider: "skynet")))
         let tools = Runtime.tools(c)
-        XCTAssertEqual(Set(tools.tools.keys), ["shell", "web_search", "web_fetch", "open"])
+        XCTAssertEqual(Set(tools.tools.keys), ["shell", "web_search", "web_fetch", "open",
+                                              "ensaiar_organizacao", "aplicar_plano", "desfazer_plano"])
     }
 
     func testSecretFromEnvironment() {
